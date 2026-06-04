@@ -1,0 +1,73 @@
+# claude_shared — canonical builds of rtl_buddy's dependent EDA tools.
+# Each tool is a git submodule pinned at an official release tag, with three
+# documented exceptions (per rtl_buddy docs — see README.md):
+#   - yosys: rtl-buddy/yosys `rtl-buddy` branch (docs/concepts/synthesis.md) —
+#     stock v0.66 rejects the unpacked structs / specific package imports the
+#     template designs use.
+#   - yosys-slang: rtl-buddy/yosys-slang `rtl-buddy` branch until
+#     povik/yosys-slang#317 merges (docs/concepts/fpv.md).
+#   - surfer: rtl-buddy/surfer `rtl-buddy` branch — mainline lacks the WCP
+#     extensions (set_scope, query_variable_values, time_unit) that
+#     `rb wave` / the hub bridge rely on (docs/install.md, docs/concepts/wave.md).
+#
+# Usage:
+#   make all            # build everything (OpenROAD is hours)
+#   make yosys verilator surfer ...   # individual tools
+#
+# Outputs land in each submodule's build dir; `bin/` holds relative
+# symlinks to every binary. Point /usr/local/bin (or PATH) at bin/.
+
+SHELL := /bin/zsh
+ROOT  := $(CURDIR)
+BREW  := /opt/homebrew
+JOBS  ?= 8
+
+.PHONY: all yosys yosys-slang verilator surfer veridian sby openroad
+
+all: yosys yosys-slang verilator surfer veridian sby openroad
+
+yosys:
+	echo "CONFIG := clang" > yosys/Makefile.conf
+	PATH="$(BREW)/opt/bison/bin:$(BREW)/opt/flex/bin:$(BREW)/bin:$$PATH" \
+		$(MAKE) -C yosys -j$(JOBS)
+
+# Needs the shared yosys built first (yosys-config on PATH).
+yosys-slang:
+	PATH="$(ROOT)/yosys:$(BREW)/bin:$$PATH" $(MAKE) -C yosys-slang -j$(JOBS)
+
+verilator:
+	cd verilator && autoconf && ./configure --prefix=$(ROOT)/tools
+	$(MAKE) -C verilator -j$(JOBS)
+	$(MAKE) -C verilator install
+
+surfer:
+	cd surfer && cargo build --release --bin surfer --bin surver
+
+veridian:
+	cd veridian && cargo build --release
+
+sby:
+	test -d sby-venv || python3 -m venv sby-venv
+	./sby-venv/bin/pip install --quiet click
+	$(MAKE) -C sby install PREFIX=$(ROOT)/tools \
+		YOSYS_RELEASE_VERSION="SBY $$(git -C sby describe --tags)"
+	sed -i '' '1s|^#!/usr/bin/env python3$$|#!$(ROOT)/sby-venv/bin/python3|' tools/bin/sby
+
+openroad:
+	$(BREW)/bin/cmake -S OpenROAD -B OpenROAD/build \
+		-DCMAKE_BUILD_TYPE=RELEASE \
+		-DBUILD_GUI=OFF \
+		-DCMAKE_DISABLE_FIND_PACKAGE_Qt5=ON \
+		-DCMAKE_C_COMPILER=$(BREW)/opt/llvm/bin/clang \
+		-DCMAKE_CXX_COMPILER=$(BREW)/opt/llvm/bin/clang++ \
+		"-DCMAKE_PREFIX_PATH=$(HOME)/.local;$(BREW);$(BREW)/opt/icu4c" \
+		-DTCL_LIBRARY=$(BREW)/lib/libtcl8.6.dylib \
+		-DTCL_HEADER=$(BREW)/Cellar/tcl-tk/8.6.14/include/tcl-tk/tcl.h \
+		-DBISON_EXECUTABLE=$(BREW)/opt/bison/bin/bison \
+		-DFLEX_EXECUTABLE=$(BREW)/opt/flex/bin/flex \
+		-DFLEX_INCLUDE_DIR=$(BREW)/opt/flex/include \
+		-DCMAKE_C_FLAGS=-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED \
+		-DCMAKE_CXX_FLAGS=-DBOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED \
+		"-DCMAKE_EXE_LINKER_FLAGS=-L$(BREW)/lib -L$(HOME)/.local/lib -L$(BREW)/opt/icu4c/lib -L$(BREW)/opt/llvm/lib/c++ -lc++ -lc++abi" \
+		"-DCMAKE_SHARED_LINKER_FLAGS=-L$(BREW)/lib -L$(HOME)/.local/lib -L$(BREW)/opt/icu4c/lib -L$(BREW)/opt/llvm/lib/c++"
+	$(MAKE) -C OpenROAD/build -j$(JOBS)

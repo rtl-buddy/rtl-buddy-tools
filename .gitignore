@@ -1,0 +1,4 @@
+# Build/install outputs of the superproject (submodule build dirs are
+# covered by ignore = dirty in .gitmodules).
+/tools/
+/sby-venv/

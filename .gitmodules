@@ -1,0 +1,31 @@
+[submodule "yosys"]
+	path = yosys
+	url = https://github.com/rtl-buddy/yosys
+	ignore = dirty
+	branch = rtl-buddy
+[submodule "yosys-slang"]
+	path = yosys-slang
+	url = https://github.com/rtl-buddy/yosys-slang
+	ignore = dirty
+	branch = rtl-buddy
+[submodule "verilator"]
+	path = verilator
+	url = https://github.com/verilator/verilator
+	ignore = dirty
+[submodule "surfer"]
+	path = surfer
+	url = https://github.com/rtl-buddy/surfer.git
+	ignore = dirty
+	branch = rtl-buddy
+[submodule "sby"]
+	path = sby
+	url = https://github.com/YosysHQ/sby
+	ignore = dirty
+[submodule "veridian"]
+	path = veridian
+	url = https://github.com/vivekmalneedi/veridian
+	ignore = dirty
+[submodule "OpenROAD"]
+	path = OpenROAD
+	url = https://github.com/The-OpenROAD-Project/OpenROAD
+	ignore = dirty
