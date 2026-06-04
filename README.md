@@ -14,7 +14,7 @@ single place they are cloned, pinned, and built.
 | `verilator` | verilator/verilator | `v5.048` | official release |
 | `surfer` | rtl-buddy/surfer | branch `rtl-buddy` | WCP extensions (`set_scope`, `query_variable_values`, `time_unit`) required by `rb wave` / hub bridge; mainline lacks them (see rtl_buddy `docs/install.md`) |
 | `sby` | YosysHQ/sby | `v0.66` | official release |
-| `OpenROAD` | The-OpenROAD-Project/OpenROAD | `26Q2` | latest quarterly tag |
+| `OpenROAD` | The-OpenROAD-Project/OpenROAD | `731f8ff5a4` (26Q2+911) | the bare `26Q2` tag crashes `rb power` static/dynamic analysis on macOS; this is the known-good commit the previous claude_2 build used |
 | `veridian` | vivekmalneedi/veridian | master | upstream has no release tags |
 
 Non-submodule dirs (gitignored):
