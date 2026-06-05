@@ -1,9 +1,9 @@
-# claude_shared — canonical builds of rtl_buddy's dependent EDA tools.
-# Each tool is a git submodule pinned at an official release tag, with three
-# documented exceptions (per rtl_buddy docs — see README.md):
+# Consolidated macOS builds of the EDA tools rtl_buddy depends on.
+# Each tool is a git submodule pinned at a validated ref, with three
+# documented fork pins (per rtl_buddy docs — see README.md):
 #   - yosys: rtl-buddy/yosys `rtl-buddy` branch (docs/concepts/synthesis.md) —
-#     stock v0.66 rejects the unpacked structs / specific package imports the
-#     template designs use.
+#     stock upstream rejects the unpacked structs / specific package imports
+#     that rtl_buddy designs use.
 #   - yosys-slang: rtl-buddy/yosys-slang `rtl-buddy` branch until
 #     povik/yosys-slang#317 merges (docs/concepts/fpv.md).
 #   - surfer: rtl-buddy/surfer `rtl-buddy` branch — mainline lacks the WCP
@@ -15,11 +15,12 @@
 #   make yosys verilator surfer ...   # individual tools
 #
 # Outputs land in each submodule's build dir; `bin/` holds relative
-# symlinks to every binary. Point /usr/local/bin (or PATH) at bin/.
+# symlinks to every binary — put bin/ on PATH (or symlink from
+# /usr/local/bin).
 
 SHELL := /bin/zsh
 ROOT  := $(CURDIR)
-BREW  := /opt/homebrew
+BREW  ?= $(shell brew --prefix)
 JOBS  ?= 8
 
 .PHONY: all yosys yosys-slang verilator surfer veridian sby openroad
@@ -53,6 +54,9 @@ sby:
 		YOSYS_RELEASE_VERSION="SBY $$(git -C sby describe --tags)"
 	sed -i '' '1s|^#!/usr/bin/env python3$$|#!$(ROOT)/sby-venv/bin/python3|' tools/bin/sby
 
+# OpenROAD's lemon/cudd deps are expected under ~/.local — install once with:
+#   cd OpenROAD && ./etc/DependencyInstaller.sh -prefix $$HOME/.local
+# Every flag below is load-bearing on macOS; see AGENTS.md before changing.
 openroad:
 	$(BREW)/bin/cmake -S OpenROAD -B OpenROAD/build \
 		-DCMAKE_BUILD_TYPE=RELEASE \
@@ -61,8 +65,8 @@ openroad:
 		-DCMAKE_C_COMPILER=$(BREW)/opt/llvm/bin/clang \
 		-DCMAKE_CXX_COMPILER=$(BREW)/opt/llvm/bin/clang++ \
 		"-DCMAKE_PREFIX_PATH=$(HOME)/.local;$(BREW);$(BREW)/opt/icu4c" \
-		-DTCL_LIBRARY=$(BREW)/lib/libtcl8.6.dylib \
-		-DTCL_HEADER=$(BREW)/Cellar/tcl-tk/8.6.14/include/tcl-tk/tcl.h \
+		-DTCL_LIBRARY=$(BREW)/opt/tcl-tk@8/lib/libtcl8.6.dylib \
+		-DTCL_HEADER=$(BREW)/opt/tcl-tk@8/include/tcl-tk/tcl.h \
 		-DBISON_EXECUTABLE=$(BREW)/opt/bison/bin/bison \
 		-DFLEX_EXECUTABLE=$(BREW)/opt/flex/bin/flex \
 		-DFLEX_INCLUDE_DIR=$(BREW)/opt/flex/include \

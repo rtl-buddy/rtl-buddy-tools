@@ -2,3 +2,7 @@
 # covered by ignore = dirty in .gitmodules).
 /tools/
 /sby-venv/
+
+# User-local machine-specific scripts (kept untracked on purpose)
+/repoint_usr_local_bin.zsh
+/cleanup_old_builds.zsh
