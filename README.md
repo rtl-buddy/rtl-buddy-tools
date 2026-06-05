@@ -8,10 +8,11 @@ macOS build recipe; `bin/` ends up with a symlink to every binary.
 ## Quick start
 
 ```sh
-git clone --recursive <this-repo> rtl-buddy-tools
+git clone --recursive https://github.com/rtl-buddy/rtl-buddy-tools.git
 cd rtl-buddy-tools
 
-# prerequisites (Apple Silicon or Intel; BREW is auto-detected)
+# prerequisites — Apple Silicon or Intel (brew prefix auto-detected);
+# Xcode CLT assumed (xcode-select --install)
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
              gtkwave graphviz lcov verible icarus-verilog z3 yices
 # Rust toolchain (surfer, veridian): https://rustup.rs
