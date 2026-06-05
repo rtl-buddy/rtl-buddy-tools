@@ -13,8 +13,9 @@ cd rtl-buddy-tools
 
 # prerequisites — Apple Silicon or Intel (brew prefix auto-detected);
 # Xcode CLT assumed (xcode-select --install)
+brew tap chipsalliance/verible   # verible is not in homebrew-core
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov verible icarus-verilog z3 yices
+             gtkwave graphviz lcov verible icarus-verilog z3 yices2
 # Rust toolchain (surfer, veridian): https://rustup.rs
 # OpenROAD's lemon/cudd deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -prefix $HOME/.local && cd ..
