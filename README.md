@@ -55,6 +55,13 @@ Linux notes:
   export and which would misdirect this repo's verilator wrapper.
 - klayout is not installed (needs root or an AppImage); `rb pnr --gds/--png`
   streamout is unavailable until it is.
+- `rb wave` works headless two ways: surfer's `--headless` mode renders
+  waveform PNGs with no display at all (`surfer --headless -c <cmds> f.fst`
+  with an `export_wave out.png W H` command — see
+  rtl-buddy-project-template's `verif/demo_tiny_alu/build_report.py`), and
+  the interactive WCP flow runs under Xvfb. Caveat: EDA vendor modules may
+  shadow `Xvfb` on PATH (breaking `xvfb-run` with `XOpenDisplayFailed`) —
+  start `/usr/bin/Xvfb :99` explicitly and run with `DISPLAY=:99`.
 
 Then put `bin/` on `PATH`, or symlink its entries from `/usr/local/bin`.
 Verify with rtl_buddy: `rb tool-check`.
