@@ -6,3 +6,7 @@
 # User-local machine-specific scripts (kept untracked on purpose)
 /repoint_usr_local_bin.zsh
 /cleanup_old_builds.zsh
+
+# Machine-local environment additions sourced by env-linux.sh (untracked
+# on purpose, like the *.zsh scripts above)
+/site-env.sh

@@ -4,27 +4,31 @@ Guidance for AI agents (and humans) working in this repository.
 
 ## What this repo is
 
-A macOS "installer" superproject for the external EDA tools that
+A macOS + Linux "installer" superproject for the external EDA tools that
 [rtl_buddy](https://github.com/rtl-buddy/rtl_buddy) shells out to. It exists so
 tool builds live in ONE place with pinned, validated refs — not scattered
 across per-user workspaces. It is consumed two ways:
 
-1. `bin/` on `PATH` (or `/usr/local/bin` symlinks into `bin/`).
+1. `bin/` on `PATH` (macOS: or `/usr/local/bin` symlinks into `bin/`;
+   Linux: `source env-linux.sh`).
 2. Project configs pointing at `yosys-slang/build/slang.so` (`plugin-path`).
 
 ## Layout
 
 ```
-Makefile          # the build recipe per tool — the source of truth
-bin/              # committed relative symlinks to every built binary
-<submodules>      # yosys, yosys-slang, verilator, surfer, sby, OpenROAD, veridian
-tools/            # gitignored install prefix (verilator, sby)
-sby-venv/         # gitignored python venv for the sby launcher
+Makefile                  # the build recipe per tool — the source of truth
+                          #   (recipes branch on `uname -s`: Darwin / Linux)
+bin/                      # committed relative symlinks to every built binary
+<submodules>              # yosys, yosys-slang, verilator, surfer, sby, OpenROAD, veridian
+tools/                    # gitignored install prefix (verilator, sby)
+sby-venv/                 # gitignored python venv for the sby launcher
+install-prereqs-linux.sh  # Linux: user-space deps brew provides on macOS (-> ~/.local)
+env-linux.sh              # Linux: PATH setup + VERILATOR_ROOT unset; sources site-env.sh
 ```
 
-Untracked `*.zsh` scripts at the top level are user-local (machine-specific
-symlink management). Leave them untracked; do not commit, generalize, or
-delete them.
+Untracked `*.zsh` scripts and `site-env.sh` at the top level are user-local
+(machine-specific symlink/PATH management). Leave them untracked; do not
+commit, generalize, or delete them.
 
 ## Ground rules
 
@@ -59,7 +63,30 @@ delete them.
    is an exec wrapper, not a symlink) and the Makefile passes
    `YOSYS_RELEASE_VERSION` explicitly because `git describe` inside sby's own
    Makefile resolves empty under an absorbed submodule gitdir.
-7. **Commit style:** a pin bump is one commit containing the submodule pointer,
+7. **macOS and Linux recipes coexist; don't cross-contaminate.** The
+   Makefile branches on `uname -s` — when touching one OS's recipe, leave
+   the other branch byte-identical (the Darwin recipe is the original,
+   validated one). Linux-only failure modes the recipe flags guard against
+   (validated on Rocky 8.10, no root):
+   - system bison 3.0.4 → yosys `require bison 3.6`; verilator man pages
+     also need `help2man` (both via install-prereqs-linux.sh → ~/.local)
+   - system `gmake` 4.2.1 picked up by cmake → `invalid --jobserver-auth
+     string 'fifo:...'` under make ≥ 4.4 (the prereq script aliases gmake)
+   - in-tree `yosys-config --cxxflags` emits its baked-in `/usr/local`
+     include dir → yosys-slang needs `-DCMAKE_CXX_FLAGS=-I$(ROOT)/yosys`
+   - or-tools' bundled Boost-1.87 cmake configs shadow the installer-built
+     1.89 → pin `Boost_DIR`; bare `-lyaml-cpp` test links need explicit
+     `-L ~/.local/lib{,64}`
+   - site modules export `VERILATOR_ROOT` → must be unset to build AND run
+     (env-linux.sh does this)
+8. **Moving a Linux checkout re-embeds paths.** `tools/bin/sby` (venv
+   shebang) and the verilator install (configure-time prefix) hardcode the
+   absolute repo path: after a move, `rm -rf sby-venv && make sby` and
+   `make verilator`, and delete stale verilator `obj_dir*` caches in
+   consuming projects (their generated makefiles point at the old prefix).
+   Prefer the canonical physical path (not a symlinked `$HOME` view) so
+   embedded paths work for every user of a shared checkout.
+9. **Commit style:** a pin bump is one commit containing the submodule pointer,
    any Makefile/README/AGENTS.md updates it forces, and a body that names the
    validation performed. Never commit `tools/`, `sby-venv/`, or build outputs.
 

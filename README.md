@@ -1,11 +1,12 @@
-# rtl-buddy tools — macOS installer
+# rtl-buddy tools — macOS / Linux installer
 
 One repo that clones, pins, and builds every external EDA tool
 [rtl_buddy](https://github.com/rtl-buddy/rtl_buddy) depends on. Each tool is a
 git submodule at a validated ref; the top-level `Makefile` encodes the exact
-macOS build recipe; `bin/` ends up with a symlink to every binary.
+build recipe per OS (`uname -s` selects the branch); `bin/` ends up with a
+symlink to every binary.
 
-## Quick start
+## Quick start (macOS)
 
 ```sh
 git clone --recursive https://github.com/rtl-buddy/rtl-buddy-tools.git
@@ -24,6 +25,36 @@ make all          # everything (OpenROAD takes hours)
 # or individually, e.g.:
 make yosys yosys-slang verilator surfer sby
 ```
+
+## Quick start (Linux — validated on Rocky 8.10, no root)
+
+Assumes a toolchain with gcc >= 12 and cmake >= 3.16 on PATH (e.g. via
+`module load gcc cmake`) plus system `tcl-devel readline-devel zlib-devel
+libffi-devel gmp-devel`. Everything else installs to `~/.local` / `~/.cargo`:
+
+```sh
+git clone --recursive https://github.com/rtl-buddy/rtl-buddy-tools.git
+cd rtl-buddy-tools
+
+# Rust toolchain (surfer, veridian):
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# bison 3.8, gperf, help2man, yaml-cpp, z3, yices2, iverilog, lcov, gmake alias:
+./install-prereqs-linux.sh
+# OpenROAD's boost/eigen/lemon/cudd/or-tools/swig deps (once):
+#   cd OpenROAD && ./etc/DependencyInstaller.sh -common -prefix=$HOME/.local && cd ..
+
+make all          # everything (OpenROAD is the long pole)
+source env-linux.sh   # puts bin/ + ~/.local/bin + ~/.cargo/bin on PATH
+```
+
+Linux notes:
+
+- verible / gtkwave / graphviz come from the site (`module load verible`,
+  system graphviz) — not built here.
+- `env-linux.sh` also unsets `VERILATOR_ROOT`, which site verilator modules
+  export and which would misdirect this repo's verilator wrapper.
+- klayout is not installed (needs root or an AppImage); `rb pnr --gds/--png`
+  streamout is unavailable until it is.
 
 Then put `bin/` on `PATH`, or symlink its entries from `/usr/local/bin`.
 Verify with rtl_buddy: `rb tool-check`.
