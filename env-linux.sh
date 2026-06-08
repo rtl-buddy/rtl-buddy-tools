@@ -11,8 +11,13 @@ _RB_TOOLS_ROOT="$(cd "$(dirname "$_RB_TOOLS_SRC")" && pwd)"
 export PATH="$_RB_TOOLS_ROOT/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 # Site environment-module setups commonly export VERILATOR_ROOT for a
-# foreign verilator install; that would misdirect this repo's verilator
-# wrapper (our verilator is `make install`ed with its own embedded root).
+# foreign verilator install. Our verilator is `make install`ed, so it
+# resolves its data dir from a compiled-in root (confirm with
+# `verilator --getenv VERILATOR_ROOT`). Per the Verilator manual an
+# installed verilator must NOT have VERILATOR_ROOT set — that variable is
+# only for running from a build/kit tree, and a stale site value would
+# misdirect the wrapper. So clear it and let the embedded root win; do not
+# set it to this repo.
 unset VERILATOR_ROOT
 
 # Machine-specific additions (e.g. a verible module dir on PATH, a SystemC
