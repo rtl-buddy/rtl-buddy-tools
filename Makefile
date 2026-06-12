@@ -30,8 +30,16 @@ JOBS  ?= 8
 ifeq ($(UNAME),Darwin)
 SHELL := /bin/zsh
 BREW  ?= $(shell brew --prefix)
+# verilator's src/Makefile_obj relies on .SECONDARY/intermediate semantics
+# that Apple's GNU make 3.81 gets wrong: with VL_VLCOV=1 the only
+# prerequisite (VlcMain.o) is implicit-rule-only, 3.81 treats the missing
+# intermediate as "already up to date" and verilator_coverage_bin_dbg is
+# silently never linked (surfaces later as installbin Error 71). Use brew's
+# GNU make 4.x for the verilator tree (brew install make).
+VMAKE ?= $(BREW)/opt/make/libexec/gnubin/make
 else
 SHELL := /bin/bash
+VMAKE ?= $(MAKE)
 endif
 
 .PHONY: all yosys yosys-slang verilator surfer veridian sby openroad
@@ -73,8 +81,8 @@ verilator:
 	cd verilator && autoconf && env -u VERILATOR_ROOT \
 		PATH="$(HOME)/.local/bin:$$PATH" ./configure --prefix=$(ROOT)/tools
 	env -u VERILATOR_ROOT PATH="$(HOME)/.local/bin:$$PATH" \
-		$(MAKE) -C verilator -j$(JOBS)
-	env -u VERILATOR_ROOT $(MAKE) -C verilator install
+		$(VMAKE) -C verilator -j$(JOBS)
+	env -u VERILATOR_ROOT $(VMAKE) -C verilator install
 
 surfer:
 	cd surfer && PATH="$(HOME)/.cargo/bin:$$PATH" \
