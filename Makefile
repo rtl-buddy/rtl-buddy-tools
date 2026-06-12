@@ -85,8 +85,16 @@ veridian:
 
 # bin/sby is an exec wrapper (not a symlink) so sby resolves its real
 # ../share/yosys/python3; the venv shebang keeps it off the system python.
+#
+# SBY_PYTHON: build sby's venv on the same uv-managed CPython that rtl_buddy
+# (`rb`) runs on, instead of whatever python3 the ambient site module happens
+# to provide. uv's standalone python carries an $ORIGIN/../lib rpath, so the
+# resulting sby binary resolves libpython on its own — no python-module
+# LD_LIBRARY_PATH entry in site-env.sh needed. Override e.g. SBY_PYTHON=3.12.
+# (Requires uv on PATH at build time — already a runtime prerequisite of rb.)
+SBY_PYTHON ?= 3.11
 sby:
-	test -d sby-venv || python3 -m venv sby-venv
+	test -d sby-venv || uv venv --python $(SBY_PYTHON) --seed sby-venv
 	./sby-venv/bin/pip install --quiet click
 	$(MAKE) -C sby install PREFIX=$(ROOT)/tools \
 		YOSYS_RELEASE_VERSION="SBY $$(git -C sby describe --tags)"
