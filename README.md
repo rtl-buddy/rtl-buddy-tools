@@ -73,7 +73,7 @@ Verify with rtl_buddy: `rb tool-check`.
 | `yosys` | rtl-buddy/yosys | branch `rtl-buddy` (v0.64 + patches) | rtl_buddy `docs/concepts/synthesis.md#installing-yosys` mandates the fork: it adds unpacked-struct tolerance, `import pkg::name` lexing, packed-struct-array support. Stock upstream (tested v0.66) fails rtl_buddy synth (`Only PACKED supported`) |
 | `yosys-slang` | rtl-buddy/yosys-slang | branch `rtl-buddy` | SVA implication lowering for `rb fpv frontend: slang`; switch to povik master once [povik/yosys-slang#317](https://github.com/povik/yosys-slang/pull/317) merges (see rtl_buddy `docs/concepts/fpv.md`) |
 | `surfer` | rtl-buddy/surfer | branch `rtl-buddy` | WCP extensions (`set_scope`, `query_variable_values`, `time_unit`) required by `rb wave` / hub bridge; mainline lacks them (see rtl_buddy `docs/install.md`) |
-| `verilator` | verilator/verilator | `v5.048` | official release |
+| `verilator` | rtl-buddy/verilator | branch `rtl-buddy` (v5.048 + patch) | v5.048 + backport of the V3TSP variable-ordering data-race fix (upstream PR #7752 / issues #7194, #5756): the global edge-id counter races under `--threads>1 -j>1` → `V3TSP.cpp: No unmarked edges found in tour`. No released verilator (≤ v5.048) has the fix; upstream `master`/5.049-devel removed V3TSP entirely. Re-point to a v5.049 tag once released |
 | `sby` | YosysHQ/sby | `v0.66` | official release |
 | `OpenROAD` | The-OpenROAD-Project/OpenROAD | `731f8ff5a4` (26Q2+911) | the bare `26Q2` tag crashes `rb power` static/dynamic on macOS; this is the validated commit |
 | `veridian` | vivekmalneedi/veridian | master | upstream has no release tags |
