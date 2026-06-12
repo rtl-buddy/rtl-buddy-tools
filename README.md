@@ -16,7 +16,11 @@ cd rtl-buddy-tools
 # Xcode CLT assumed (xcode-select --install)
 brew tap chipsalliance/verible   # verible is not in homebrew-core
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov verible icarus-verilog z3 yices2
+             gtkwave graphviz lcov verible icarus-verilog z3 yices2 uv
+# uv (rtl_buddy's package manager) is also required by `make sby`: it builds
+# sby's venv on uv's CPython 3.11 — the same interpreter rb runs on, instead of
+# the ambient python3 (see SBY_PYTHON in the Makefile). Usually already present
+# wherever rb is installed.
 # Rust toolchain (surfer, veridian): https://rustup.rs
 # OpenROAD's lemon/cudd deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -prefix $HOME/.local && cd ..
