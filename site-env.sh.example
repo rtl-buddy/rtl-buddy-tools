@@ -1,0 +1,62 @@
+# site-env.sh.example — machine-local environment additions for the rtl-buddy
+# toolchain. Copy to a sibling `site-env.sh` (gitignored) and adjust paths:
+#     cp site-env.sh.example site-env.sh
+# env-linux.sh sources `site-env.sh` if it exists.
+#
+# LINUX ONLY. The macOS flow does NOT use this — it picks tools up from Homebrew
+# on PATH (see README "Quick start (macOS)"); env-linux.sh / site-env.sh are
+# never sourced there, so this file has no effect on macOS.
+#
+# WHY THIS EXISTS (issue #6): these exports guarantee the gcc + ccache RUNTIME
+# (and other server specifics) in a NON-INTERACTIVE shell — CI, agents,
+# `bash -c "..."`, `ssh host cmd`, cron — which does not run the environment
+# modules an interactive login auto-loads. Without them a fresh non-interactive
+# `source env-linux.sh && rb test` fails in sequence:
+#   1. verilator_bin: error while loading shared libraries: libatomic.so.1
+#   2. make: ccache: Command not found  (verilated.mk defaults OBJCACHE ?= ccache)
+#   3. makefile CXX falls back to system g++ 8.5 instead of 12.3
+# An interactive login masks all three via the auto-loaded gcc/ccache modules.
+#
+# Values below are for the TW-Exp / Rocky 8.10 server with gcc 12.3.0 (the
+# rb_tools_shared default). The gcc-14 toolchain swaps 12.3.0 -> 14.2.0 in every
+# gcc path below; other machines adjust the install prefixes to taste.
+
+# verible — from the site module tree (not built by this repo).
+export PATH="/auto/tools/installs/verible/v0.0-3960-g1f2b094d/bin:$PATH"
+
+# SystemC: the module exports .../lib but installs the libs under lib64/ —
+# cosim binaries need lib64 at run time, and the auto-emitted link line (which
+# assumes lib/) needs it on LIBRARY_PATH at link time.
+export LD_LIBRARY_PATH="/auto/tools/installs/systemc/3.0.0/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LIBRARY_PATH="/auto/tools/installs/systemc/3.0.0/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}"
+
+# Bake the gcc 12.3.0 runtime into binaries we link (DT_RPATH; the linker reads
+# LD_RUN_PATH when no explicit -Wl,-rpath is given), so a spawned simv finds the
+# right GLIBCXX even when a launcher (cocotb, etc.) drops LD_LIBRARY_PATH.
+export LD_RUN_PATH="/auto/tools/installs/gcc/12.3.0/lib64${LD_RUN_PATH:+:$LD_RUN_PATH}"
+
+# gcc 12.3.0 + ccache on PATH (issue #6, symptoms 2+3). Login shells get these
+# from modules; a non-interactive shell does not, so the makefile CXX otherwise
+# falls back to system g++ 8.5 and OBJCACHE=ccache fails with rc 127.
+export PATH="/auto/tools/installs/gcc/12.3.0/bin:/auto/tools/installs/ccache/4.10.2/bin:$PATH"
+
+# The prebuilt verilator_bin loads libatomic.so.1 / libstdc++ from gcc 12.3.0 at
+# RUN time (issue #6, symptom 1). LD_RUN_PATH above only covers what WE link, not
+# the already-linked verilator_bin, so this dir must be on LD_LIBRARY_PATH too.
+export LD_LIBRARY_PATH="/auto/tools/installs/gcc/12.3.0/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Node.js LTS shipped in this toolchain (rb_tools_shared/nodejs/) rather than a
+# site module — used by Coverview. $_RB_TOOLS_ROOT is set by env-linux.sh while
+# it sources this file.
+export PATH="${_RB_TOOLS_ROOT:-/auto/share/hw/expsg/expsgshare/rb_tools_shared}/nodejs/node-v24.16.0-linux-x64/bin:$PATH"
+
+# bison (built into ~/.local by install-prereqs-linux.sh) links GNU
+# libiconv.so.2 with no rpath; this also provides the ~/.local readline/tcl
+# runtime. Needed if you rebuild tools from this checkout; harmless otherwise.
+export LD_LIBRARY_PATH="$HOME/.local/lib:$HOME/.local/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# NOTE: no python-module lib path is needed. sby-venv is built on uv's
+# standalone CPython 3.11 (Makefile SBY_PYTHON), which resolves libpython via its
+# own $ORIGIN/../lib rpath; yosys-smtbmc's `#!/usr/bin/env python3` uses whatever
+# python3 is on PATH (the login's site python, or the system python in a clean
+# shell) — both work without a version-pinned python lib dir here.

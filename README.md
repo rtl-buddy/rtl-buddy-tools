@@ -43,12 +43,21 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 # OpenROAD's boost/eigen/lemon/cudd/or-tools/swig deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -common -prefix=$HOME/.local && cd ..
 
+cp site-env.sh.example site-env.sh   # machine-local env (gcc/ccache runtime, verible, SystemC, node) — adjust paths
 make all          # everything (OpenROAD is the long pole)
-source env-linux.sh   # puts bin/ + ~/.local/bin + ~/.cargo/bin on PATH
+source env-linux.sh   # sources site-env.sh, then puts bin/ + ~/.local/bin + ~/.cargo/bin on PATH
 ```
 
 Linux notes:
 
+- **Non-interactive shells** (CI, agents, `bash -c "..."`, `ssh host cmd`, cron)
+  don't run the login's environment-module auto-loads, so they lack the gcc-12.3
+  + ccache runtime the prebuilt binaries need. Copy `site-env.sh.example` →
+  `site-env.sh` (sourced by `env-linux.sh`; gitignored) and adjust paths.
+  Without it a fresh `source env-linux.sh && rb test` fails with
+  `verilator_bin: libatomic.so.1: cannot open shared object file`, then
+  `make: ccache: Command not found`, then a system g++ 8.5 fallback (issue #6).
+  macOS doesn't use `env-linux.sh`/`site-env.sh` at all (Homebrew on PATH).
 - verible / gtkwave / graphviz come from the site (`module load verible`,
   system graphviz) — not built here.
 - `env-linux.sh` also unsets `VERILATOR_ROOT`, which site verilator modules
