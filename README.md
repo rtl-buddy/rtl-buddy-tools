@@ -105,11 +105,14 @@ Non-submodule dirs created by the build (gitignored):
 - `sby-venv/` — python venv (click) backing the sby launcher.
 
 The yosys-slang plugin is not a `bin/` tool. The env scripts export
-`RTL_BUDDY_SLANG_PLUGIN=<repo>/yosys-slang/build/slang.so`, which newer
-rtl_buddy (rtl-buddy/rtl_buddy 307 and later) uses whenever a project
-selects `frontend: slang` without setting `plugin-path`. On older
-rtl_buddy, point the project config (`plugin-path` / `plugin_path`) at
-that path explicitly.
+`RTL_BUDDY_SLANG_PLUGIN=<repo>/yosys-slang/build/slang.so`, which
+rtl_buddy >= 6.11.0 uses whenever a project selects `frontend: slang`
+without setting `plugin-path`. For shells that don't source an env
+script (agents, CI, cron), set the same variable in the consumer
+project's gitignored `.rtl-buddy/.env` (`KEY=VALUE` next to
+`root_config.yaml`; rb loads it automatically, process env wins). On
+older rtl_buddy, point the project config (`plugin-path` /
+`plugin_path`) at the path explicitly.
 
 ## Not managed here
 

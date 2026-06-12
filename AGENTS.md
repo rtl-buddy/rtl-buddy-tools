@@ -9,9 +9,18 @@ A macOS + Linux "installer" superproject for the external EDA tools that
 tool builds live in ONE place with pinned, validated refs — not scattered
 across per-user workspaces. It is consumed two ways:
 
-1. `bin/` on `PATH` (macOS: or `/usr/local/bin` symlinks into `bin/`;
-   Linux: `source env-linux.sh`).
-2. Project configs pointing at `yosys-slang/build/slang.so` (`plugin-path`).
+1. `bin/` on `PATH` — `source env-macos.zsh` / `source env-linux.sh`
+   per OS (macOS alternative: `/usr/local/bin` symlinks into `bin/`).
+2. The yosys-slang plugin location via the `RTL_BUDDY_SLANG_PLUGIN`
+   environment variable (rtl_buddy >= 6.11.0 reads it whenever a
+   project selects `frontend: slang` without a `plugin-path`). Both env
+   scripts export it pointing at `yosys-slang/build/slang.so`. For
+   shells that didn't source an env script, a consumer project can set
+   it in its gitignored `.rtl-buddy/.env` at the project root
+   (`KEY=VALUE`; rb loads it automatically; process env wins). Do NOT
+   hard-code `plugin-path` in consumer project configs — that is the
+   retired per-machine-edit convention; an explicit `plugin-path` is
+   only for deliberately overriding the environment.
 
 ## Layout
 
@@ -23,7 +32,8 @@ bin/                      # committed relative symlinks to every built binary
 tools/                    # gitignored install prefix (verilator, sby)
 sby-venv/                 # gitignored python venv for the sby launcher
 install-prereqs-linux.sh  # Linux: user-space deps brew provides on macOS (-> ~/.local)
-env-linux.sh              # Linux: PATH setup + VERILATOR_ROOT unset; sources site-env.sh
+env-macos.zsh             # macOS: PATH setup + VERILATOR_ROOT unset + RTL_BUDDY_SLANG_PLUGIN export
+env-linux.sh              # Linux: same, plus sources site-env.sh
 ```
 
 Untracked `*.zsh` scripts and `site-env.sh` at the top level are user-local
