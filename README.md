@@ -16,7 +16,10 @@ cd rtl-buddy-tools
 # Xcode CLT assumed (xcode-select --install)
 brew tap chipsalliance/verible   # verible is not in homebrew-core
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov verible icarus-verilog z3 yices2 uv
+             gtkwave graphviz lcov verible icarus-verilog z3 yices2 uv make
+# brew `make` (GNU make 4.x) is required by `make verilator`: Apple's make
+# 3.81 mishandles verilator's .SECONDARY intermediates and silently never
+# links verilator_coverage_bin_dbg (install then fails with Error 71).
 # uv (rtl_buddy's package manager) is also required by `make sby`: it builds
 # sby's venv on uv's CPython 3.11 — the same interpreter rb runs on, instead of
 # the ambient python3 (see SBY_PYTHON in the Makefile). Usually already present
