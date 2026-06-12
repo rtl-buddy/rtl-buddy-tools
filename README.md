@@ -31,6 +31,9 @@ brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
 make all          # everything (OpenROAD takes hours)
 # or individually, e.g.:
 make yosys yosys-slang verilator surfer sby
+
+source env-macos.zsh  # puts bin/ on PATH, unsets VERILATOR_ROOT,
+                      # exports RTL_BUDDY_SLANG_PLUGIN
 ```
 
 ## Quick start (Linux — validated on Rocky 8.10, no root)
@@ -79,7 +82,9 @@ Linux notes:
   shadow `Xvfb` on PATH (breaking `xvfb-run` with `XOpenDisplayFailed`) —
   start `/usr/bin/Xvfb :99` explicitly and run with `DISPLAY=:99`.
 
-Then put `bin/` on `PATH`, or symlink its entries from `/usr/local/bin`.
+Then put `bin/` on `PATH` — `source env-macos.zsh` / `source env-linux.sh`
+do this (plus `VERILATOR_ROOT` hygiene and `RTL_BUDDY_SLANG_PLUGIN`), or
+symlink the `bin/` entries from `/usr/local/bin`.
 Verify with rtl_buddy: `rb tool-check`.
 
 ## What gets built, and why these refs
@@ -99,8 +104,12 @@ Non-submodule dirs created by the build (gitignored):
 - `tools/` — install prefix for verilator (`make install`) and sby.
 - `sby-venv/` — python venv (click) backing the sby launcher.
 
-The yosys-slang plugin is not a `bin/` tool — point project configs
-(`plugin-path` / `plugin_path`) at `<repo>/yosys-slang/build/slang.so`.
+The yosys-slang plugin is not a `bin/` tool. The env scripts export
+`RTL_BUDDY_SLANG_PLUGIN=<repo>/yosys-slang/build/slang.so`, which newer
+rtl_buddy (rtl-buddy/rtl_buddy 307 and later) uses whenever a project
+selects `frontend: slang` without setting `plugin-path`. On older
+rtl_buddy, point the project config (`plugin-path` / `plugin_path`) at
+that path explicitly.
 
 ## Not managed here
 

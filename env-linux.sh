@@ -20,6 +20,12 @@ export PATH="$_RB_TOOLS_ROOT/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 # set it to this repo.
 unset VERILATOR_ROOT
 
+# yosys-slang's slang.so is a plugin, not a bin/ executable, so PATH cannot
+# provide it. rtl_buddy (rtl-buddy/rtl_buddy 307 and later) falls back to
+# this variable when a project selects `frontend: slang` without setting
+# `plugin-path`, keeping project configs free of machine-specific paths.
+export RTL_BUDDY_SLANG_PLUGIN="$_RB_TOOLS_ROOT/yosys-slang/build/slang.so"
+
 # Machine-specific additions (e.g. a verible module dir on PATH, a SystemC
 # lib64 on LD_LIBRARY_PATH) live in an untracked sibling site-env.sh —
 # same user-local convention as the top-level *.zsh scripts (AGENTS.md).
