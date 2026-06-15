@@ -42,9 +42,15 @@ SHELL := /bin/bash
 VMAKE ?= $(MAKE)
 endif
 
-.PHONY: all yosys yosys-slang verilator surfer veridian sby openroad
+.PHONY: all yosys yosys-slang verilator surfer veridian sby openroad \
+        openxc7 openxc7-nextpnr openxc7-prjxray openxc7-chipdb
 
 all: yosys yosys-slang verilator surfer veridian sby openroad
+
+# `openxc7` (the open FPGA toolchain — nextpnr-xilinx + prjxray + a
+# per-part nextpnr chipdb) is OPTIONAL and intentionally NOT part of `all`:
+# `make` / `make all` never build it. Build it on demand with `make
+# openxc7`. See the openXC7 section near the end of this file.
 
 ifeq ($(UNAME),Darwin)
 yosys:
@@ -150,4 +156,92 @@ openroad:
 		"-DCMAKE_EXE_LINKER_FLAGS=-L$(HOME)/.local/lib -L$(HOME)/.local/lib64" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-L$(HOME)/.local/lib -L$(HOME)/.local/lib64"
 	$(MAKE) -C OpenROAD/build -j$(JOBS)
+endif
+
+# ===========================================================================
+# openXC7 — open FPGA toolchain (OPTIONAL; not built by `all`).
+#
+#   make openxc7                 # nextpnr-xilinx + prjxray + chipdb
+#   make openxc7 CHIP_PART=xc7a100tcsg324-1   # a different 7-series part
+#
+# Components (submodules pinned at the openXC7 toolchain-installer's
+# validated refs): nextpnr-xilinx, prjxray, prjxray-db. The in-repo `yosys`
+# already provides `synth_xilinx`, so no second yosys is built. Outputs:
+#   bin/{nextpnr-xilinx,bbasm,xc7frames2bit,fasm2frames}
+#   tools/share/nextpnr/chipdb/<part>.bin        nextpnr chipdb (per part)
+# env-macos.zsh / env-linux.sh export CHIPDB + PRJXRAY_DB_DIR so
+# `rb fpga tool: openxc7` finds the chipdb and (for --bitstream) the db.
+#
+# nextpnr is built with BUILD_PYTHON=OFF: the chipdb generator (bbaexport)
+# is standalone python and CLI place-and-route needs no bindings, so this
+# sidesteps boost-python linkage entirely. The CMakeLists reads
+# EIGEN3_INCLUDE_DIRS (plural) which modern Eigen3Config.cmake does not set,
+# so the brew eigen3 include dir is passed explicitly (macOS). prjxray's
+# vendored gflags/abseil predate cmake 4 -> CMAKE_POLICY_VERSION_MINIMUM.
+# fasm2frames is a python util; bin/fasm2frames wraps it on a dedicated
+# openxc7-venv carrying prjxray's requirements.
+CHIP_PART ?= xc7a35tcsg324-1
+
+openxc7: openxc7-nextpnr openxc7-prjxray openxc7-chipdb
+	@echo "openXC7 built. Source env-$(if $(filter Darwin,$(UNAME)),macos.zsh,linux.sh) for CHIPDB + PRJXRAY_DB_DIR."
+
+openxc7-chipdb: openxc7-nextpnr
+	mkdir -p tools/share/nextpnr/chipdb
+	PYTHONPATH=$(ROOT)/nextpnr-xilinx/xilinx/python python3 \
+		nextpnr-xilinx/xilinx/python/bbaexport.py \
+		--device $(CHIP_PART) --bba tools/share/nextpnr/chipdb/$(CHIP_PART).bba
+	nextpnr-xilinx/build/bbasm --le --files \
+		tools/share/nextpnr/chipdb/$(CHIP_PART).bba \
+		tools/share/nextpnr/chipdb/$(CHIP_PART).bin
+	rm -f tools/share/nextpnr/chipdb/$(CHIP_PART).bba
+
+ifeq ($(UNAME),Darwin)
+openxc7-nextpnr:
+	cd nextpnr-xilinx && git submodule update --init --recursive
+	$(BREW)/bin/cmake -S nextpnr-xilinx -B nextpnr-xilinx/build \
+		-DARCH=xilinx -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DBUILD_TESTS=OFF \
+		-DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools \
+		-DEIGEN3_INCLUDE_DIRS=$(BREW)/include/eigen3
+	$(BREW)/bin/cmake --build nextpnr-xilinx/build -j$(JOBS)
+	ln -sf ../nextpnr-xilinx/build/nextpnr-xilinx bin/nextpnr-xilinx
+	ln -sf ../nextpnr-xilinx/build/bbasm bin/bbasm
+
+openxc7-prjxray:
+	cd prjxray && git submodule update --init --recursive
+	$(BREW)/bin/cmake -S prjxray -B prjxray/build \
+		-DCMAKE_BUILD_TYPE=Release -DPRJXRAY_BUILD_TESTING=OFF \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
+	$(BREW)/bin/cmake --build prjxray/build -j$(JOBS)
+	test -d openxc7-venv || uv venv --python 3.11 --seed openxc7-venv
+	./openxc7-venv/bin/pip install --quiet -r prjxray/requirements.txt
+	ln -sf ../prjxray/build/tools/xc7frames2bit bin/xc7frames2bit
+	printf '#!/bin/sh\nexec "%s/openxc7-venv/bin/python" "%s/prjxray/utils/fasm2frames.py" "$$@"\n' \
+		"$(ROOT)" "$(ROOT)" > bin/fasm2frames
+	chmod +x bin/fasm2frames
+else
+# Linux: boost/eigen from the distro or ~/.local (install-prereqs-linux.sh);
+# OpenMP is available, so leave it on.
+openxc7-nextpnr:
+	cd nextpnr-xilinx && git submodule update --init --recursive
+	cmake -S nextpnr-xilinx -B nextpnr-xilinx/build \
+		-DARCH=xilinx -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DBUILD_TESTS=OFF \
+		-DUSE_OPENMP=ON -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools
+	cmake --build nextpnr-xilinx/build -j$(JOBS)
+	ln -sf ../nextpnr-xilinx/build/nextpnr-xilinx bin/nextpnr-xilinx
+	ln -sf ../nextpnr-xilinx/build/bbasm bin/bbasm
+
+openxc7-prjxray:
+	cd prjxray && git submodule update --init --recursive
+	cmake -S prjxray -B prjxray/build \
+		-DCMAKE_BUILD_TYPE=Release -DPRJXRAY_BUILD_TESTING=OFF \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
+	cmake --build prjxray/build -j$(JOBS)
+	test -d openxc7-venv || uv venv --python 3.11 --seed openxc7-venv
+	./openxc7-venv/bin/pip install --quiet -r prjxray/requirements.txt
+	ln -sf ../prjxray/build/tools/xc7frames2bit bin/xc7frames2bit
+	printf '#!/bin/sh\nexec "%s/openxc7-venv/bin/python" "%s/prjxray/utils/fasm2frames.py" "$$@"\n' \
+		"$(ROOT)" "$(ROOT)" > bin/fasm2frames
+	chmod +x bin/fasm2frames
 endif

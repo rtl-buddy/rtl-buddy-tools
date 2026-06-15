@@ -30,3 +30,15 @@
 	path = OpenROAD
 	url = https://github.com/The-OpenROAD-Project/OpenROAD
 	ignore = dirty
+[submodule "nextpnr-xilinx"]
+	path = nextpnr-xilinx
+	url = https://github.com/openXC7/nextpnr-xilinx.git
+	ignore = dirty
+[submodule "prjxray"]
+	path = prjxray
+	url = https://github.com/openXC7/prjxray.git
+	ignore = dirty
+[submodule "prjxray-db"]
+	path = prjxray-db
+	url = https://github.com/openXC7/prjxray-db.git
+	ignore = dirty

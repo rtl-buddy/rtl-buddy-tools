@@ -98,11 +98,36 @@ Verify with rtl_buddy: `rb tool-check`.
 | `sby` | YosysHQ/sby | `v0.66` | official release |
 | `OpenROAD` | The-OpenROAD-Project/OpenROAD | `731f8ff5a4` (26Q2+911) | the bare `26Q2` tag crashes `rb power` static/dynamic on macOS; this is the validated commit |
 | `veridian` | vivekmalneedi/veridian | master | upstream has no release tags |
+| `nextpnr-xilinx` | openXC7/nextpnr-xilinx | `f681eb3a` | OPTIONAL — open FPGA place-and-route for `rb fpga tool: openxc7`; pin matches the openXC7 toolchain-installer's validated ref |
+| `prjxray` | openXC7/prjxray | `ce065d47` | OPTIONAL — `fasm2frames`/`xc7frames2bit` for openXC7 bitstreams; installer-validated ref |
+| `prjxray-db` | openXC7/prjxray-db | `0.8.2` | OPTIONAL — Xilinx 7-series bitstream database root (`$PRJXRAY_DB_DIR`) |
+
+### Optional: openXC7 FPGA toolchain
+
+`nextpnr-xilinx` + `prjxray` + `prjxray-db` are **not** built by `make all`.
+Build the open FPGA flow on demand:
+
+```bash
+make openxc7                              # Arty A7-35 chipdb (xc7a35tcsg324-1)
+make openxc7 CHIP_PART=xc7a100tcsg324-1   # a different 7-series part
+```
+
+This builds `nextpnr-xilinx` (reusing the in-repo `yosys` for `synth_xilinx`),
+`prjxray`, and generates the per-part nextpnr chipdb under
+`tools/share/nextpnr/chipdb/<part>.bin`. The env scripts export `CHIPDB`
+(directory of chipdbs; `rb` resolves `$CHIPDB/<part>.bin`) and
+`PRJXRAY_DB_DIR` (needed only for `--bitstream`). macOS notes: nextpnr is
+built `BUILD_PYTHON=OFF` (chipdb gen is standalone python; CLI P&R needs no
+bindings) so boost-python is never required, and the brew `eigen3` include
+dir is passed explicitly because nextpnr's CMakeLists reads the plural
+`EIGEN3_INCLUDE_DIRS` that modern `Eigen3Config.cmake` doesn't set.
 
 Non-submodule dirs created by the build (gitignored):
 
-- `tools/` — install prefix for verilator (`make install`) and sby.
+- `tools/` — install prefix for verilator (`make install`), sby, and the
+  openXC7 nextpnr chipdb (`tools/share/nextpnr/chipdb/`).
 - `sby-venv/` — python venv (click) backing the sby launcher.
+- `openxc7-venv/` — python venv (prjxray requirements) backing `fasm2frames`.
 
 The yosys-slang plugin is not a `bin/` tool. The env scripts export
 `RTL_BUDDY_SLANG_PLUGIN=<repo>/yosys-slang/build/slang.so`, which
