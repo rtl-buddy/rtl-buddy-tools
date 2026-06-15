@@ -122,6 +122,13 @@ bindings) so boost-python is never required, and the brew `eigen3` include
 dir is passed explicitly because nextpnr's CMakeLists reads the plural
 `EIGEN3_INCLUDE_DIRS` that modern `Eigen3Config.cmake` doesn't set.
 
+**Linux: validated only on macOS so far — the Linux branch is written but
+untested.** It mirrors the macOS fixes and the other Linux recipes' `~/.local`
+convention: it expects boost + eigen3 under `~/.local` (from OpenROAD's
+`DependencyInstaller.sh`, see the openroad target) and the newer cmake/gmake
+on `~/.local/bin`. Override the eigen path for a system install with
+`make openxc7 EIGEN3_INC=/usr/include/eigen3`.
+
 Non-submodule dirs created by the build (gitignored):
 
 - `tools/` — install prefix for verilator (`make install`), sby, and the

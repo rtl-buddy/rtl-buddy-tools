@@ -182,6 +182,17 @@ endif
 # openxc7-venv carrying prjxray's requirements.
 CHIP_PART ?= xc7a35tcsg324-1
 
+# Eigen include dir, passed explicitly because nextpnr's CMakeLists reads the
+# plural EIGEN3_INCLUDE_DIRS that modern Eigen3Config.cmake leaves unset.
+# macOS: brew. Linux: this repo's ~/.local dep tree (OpenROAD's
+# DependencyInstaller puts boost+eigen there); override for a system eigen,
+# e.g. `make openxc7 EIGEN3_INC=/usr/include/eigen3`.
+ifeq ($(UNAME),Darwin)
+EIGEN3_INC ?= $(BREW)/include/eigen3
+else
+EIGEN3_INC ?= $(HOME)/.local/include/eigen3
+endif
+
 openxc7: openxc7-nextpnr openxc7-prjxray openxc7-chipdb
 	@echo "openXC7 built. Source env-$(if $(filter Darwin,$(UNAME)),macos.zsh,linux.sh) for CHIPDB + PRJXRAY_DB_DIR."
 
@@ -202,7 +213,7 @@ openxc7-nextpnr:
 		-DARCH=xilinx -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DBUILD_TESTS=OFF \
 		-DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools \
-		-DEIGEN3_INCLUDE_DIRS=$(BREW)/include/eigen3
+		-DEIGEN3_INCLUDE_DIRS=$(EIGEN3_INC)
 	$(BREW)/bin/cmake --build nextpnr-xilinx/build -j$(JOBS)
 	ln -sf ../nextpnr-xilinx/build/nextpnr-xilinx bin/nextpnr-xilinx
 	ln -sf ../nextpnr-xilinx/build/bbasm bin/bbasm
@@ -220,24 +231,32 @@ openxc7-prjxray:
 		"$(ROOT)" "$(ROOT)" > bin/fasm2frames
 	chmod +x bin/fasm2frames
 else
-# Linux: boost/eigen from the distro or ~/.local (install-prereqs-linux.sh);
-# OpenMP is available, so leave it on.
+# Linux (UNTESTED — validated only on macOS so far; mirrors the macOS fixes
+# plus this repo's ~/.local conventions). Prereqs, same tree the other Linux
+# recipes use: boost + eigen3 under ~/.local (OpenROAD's DependencyInstaller,
+# see the openroad target) and the newer cmake/gmake on ~/.local/bin (system
+# cmake on Rocky 8 is too old for prjxray's vendored gflags/abseil even with
+# the policy floor). CMAKE_PREFIX_PATH points cmake at ~/.local so it finds
+# boost/eigen; OpenMP is available so it stays on.
 openxc7-nextpnr:
 	cd nextpnr-xilinx && git submodule update --init --recursive
-	cmake -S nextpnr-xilinx -B nextpnr-xilinx/build \
+	PATH="$(HOME)/.local/bin:$$PATH" cmake -S nextpnr-xilinx -B nextpnr-xilinx/build \
 		-DARCH=xilinx -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DBUILD_TESTS=OFF \
 		-DUSE_OPENMP=ON -DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools
-	cmake --build nextpnr-xilinx/build -j$(JOBS)
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools \
+		-DCMAKE_PREFIX_PATH=$(HOME)/.local \
+		-DEIGEN3_INCLUDE_DIRS=$(EIGEN3_INC)
+	PATH="$(HOME)/.local/bin:$$PATH" cmake --build nextpnr-xilinx/build -j$(JOBS)
 	ln -sf ../nextpnr-xilinx/build/nextpnr-xilinx bin/nextpnr-xilinx
 	ln -sf ../nextpnr-xilinx/build/bbasm bin/bbasm
 
 openxc7-prjxray:
 	cd prjxray && git submodule update --init --recursive
-	cmake -S prjxray -B prjxray/build \
+	PATH="$(HOME)/.local/bin:$$PATH" cmake -S prjxray -B prjxray/build \
 		-DCMAKE_BUILD_TYPE=Release -DPRJXRAY_BUILD_TESTING=OFF \
-		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
-	cmake --build prjxray/build -j$(JOBS)
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		-DCMAKE_PREFIX_PATH=$(HOME)/.local
+	PATH="$(HOME)/.local/bin:$$PATH" cmake --build prjxray/build -j$(JOBS)
 	test -d openxc7-venv || uv venv --python 3.11 --seed openxc7-venv
 	./openxc7-venv/bin/pip install --quiet -r prjxray/requirements.txt
 	ln -sf ../prjxray/build/tools/xc7frames2bit bin/xc7frames2bit
