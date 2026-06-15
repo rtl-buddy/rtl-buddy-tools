@@ -29,8 +29,10 @@ Makefile                  # the build recipe per tool — the source of truth
                           #   (recipes branch on `uname -s`: Darwin / Linux)
 bin/                      # committed relative symlinks to every built binary
 <submodules>              # yosys, yosys-slang, verilator, surfer, sby, OpenROAD, veridian
-tools/                    # gitignored install prefix (verilator, sby)
+                          #   + OPTIONAL openXC7: nextpnr-xilinx, prjxray, prjxray-db
+tools/                    # gitignored install prefix (verilator, sby, openXC7 chipdb)
 sby-venv/                 # gitignored python venv for the sby launcher
+openxc7-venv/             # gitignored python venv (prjxray reqs) for fasm2frames
 install-prereqs-linux.sh  # Linux: user-space deps brew provides on macOS (-> ~/.local)
 env-macos.zsh             # macOS: PATH setup + VERILATOR_ROOT unset + RTL_BUDDY_SLANG_PLUGIN export
 env-linux.sh              # Linux: same, plus sources site-env.sh

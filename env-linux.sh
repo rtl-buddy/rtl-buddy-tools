@@ -26,6 +26,13 @@ unset VERILATOR_ROOT
 # `plugin-path`, keeping project configs free of machine-specific paths.
 export RTL_BUDDY_SLANG_PLUGIN="$_RB_TOOLS_ROOT/yosys-slang/build/slang.so"
 
+# openXC7 FPGA flow (`rb fpga tool: openxc7`), present only after
+# `make openxc7`. CHIPDB is the directory of per-part nextpnr chipdbs
+# (rb resolves $CHIPDB/<part>.bin); PRJXRAY_DB_DIR is the prjxray database
+# root, needed for --bitstream. Both are harmless if openXC7 isn't built.
+export CHIPDB="$_RB_TOOLS_ROOT/tools/share/nextpnr/chipdb"
+export PRJXRAY_DB_DIR="$_RB_TOOLS_ROOT/prjxray-db"
+
 # Machine-specific additions (e.g. a verible module dir on PATH, a SystemC
 # lib64 on LD_LIBRARY_PATH) live in an untracked sibling site-env.sh —
 # same user-local convention as the top-level *.zsh scripts (AGENTS.md).

@@ -10,3 +10,4 @@
 # Machine-local environment additions sourced by env-linux.sh (untracked
 # on purpose, like the *.zsh scripts above)
 /site-env.sh
+/openxc7-venv/
