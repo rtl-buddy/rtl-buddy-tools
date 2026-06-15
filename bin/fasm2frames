@@ -1,2 +1,0 @@
-#!/bin/sh
-exec "/Users/zloh/Work/claude_shared/openxc7-venv/bin/python" "/Users/zloh/Work/claude_shared/prjxray/utils/fasm2frames.py" "$@"

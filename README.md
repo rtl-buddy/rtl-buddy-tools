@@ -122,12 +122,33 @@ bindings) so boost-python is never required, and the brew `eigen3` include
 dir is passed explicitly because nextpnr's CMakeLists reads the plural
 `EIGEN3_INCLUDE_DIRS` that modern `Eigen3Config.cmake` doesn't set.
 
-**Linux: validated only on macOS so far — the Linux branch is written but
-untested.** It mirrors the macOS fixes and the other Linux recipes' `~/.local`
-convention: it expects boost + eigen3 under `~/.local` (from OpenROAD's
-`DependencyInstaller.sh`, see the openroad target) and the newer cmake/gmake
-on `~/.local/bin`. Override the eigen path for a system install with
-`make openxc7 EIGEN3_INC=/usr/include/eigen3`.
+**Linux (AlmaLinux/Rocky 8.10, gcc 12.3.0): validated end-to-end** — synth →
+nextpnr P&R → `fasm2frames` → `xc7frames2bit` produces a valid `xc7a35t`
+bitstream for the arty-a35 blinky. It uses the other Linux recipes' `~/.local`
+convention for eigen3 and the newer cmake/gmake on `~/.local/bin`, plus four
+Linux-specific fixups baked into the recipe (each commented at its site):
+
+- **Boost** — the `~/.local` Boost from OpenROAD's `DependencyInstaller.sh`
+  is unusable for nextpnr: it lacks `filesystem`/`program_options` and its
+  headers (1.87) and libs (1.89) disagree, so cmake's `FindBoost` rejects the
+  whole package. `make openxc7` therefore builds a private **static** Boost
+  (the four libs nextpnr links) into `$(BOOST_PREFIX)`
+  (`~/.local/opt/boost-nextpnr`, ~5 min, once) and pins cmake to it. Override
+  with `make openxc7 BOOST_PREFIX=… BOOST_VERSION=…`.
+- **Eigen** — the `~/.local` `Eigen3Config.cmake` sets `EIGEN3_DEFINITIONS`
+  to `EIGEN_MPL2_ONLY` *without* a `-D`, so nextpnr's
+  `add_definitions(${EIGEN3_DEFINITIONS})` feeds the compiler a bare token;
+  the recipe rewrites that one line. Override the eigen include path for a
+  system install with `make openxc7 EIGEN3_INC=/usr/include/eigen3`.
+- **prjxray venv** — `requirements.txt` has `-e third_party/fasm` / `-e .`
+  with relative paths, so pip is run with `CWD=prjxray`.
+- **prjxray flock** — `prjxray` `flock()`s every db file it reads, but the
+  repo's NFS mount returns `EBADF`; since the db is read-only the recipe
+  drops the lock so `fasm2frames` can run.
+
+The gcc-12.3.0 runtime (`libstdc++`) resolves via the baked `LD_RUN_PATH`
+from `site-env.sh` (issue #6) — source an env script before building so the
+openXC7 binaries pick it up, exactly as for every other tool here.
 
 Non-submodule dirs created by the build (gitignored):
 

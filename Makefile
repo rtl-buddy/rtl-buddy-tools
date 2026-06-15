@@ -43,7 +43,7 @@ VMAKE ?= $(MAKE)
 endif
 
 .PHONY: all yosys yosys-slang verilator surfer veridian sby openroad \
-        openxc7 openxc7-nextpnr openxc7-prjxray openxc7-chipdb
+        openxc7 openxc7-boost openxc7-nextpnr openxc7-prjxray openxc7-chipdb
 
 all: yosys yosys-slang verilator surfer veridian sby openroad
 
@@ -191,6 +191,14 @@ ifeq ($(UNAME),Darwin)
 EIGEN3_INC ?= $(BREW)/include/eigen3
 else
 EIGEN3_INC ?= $(HOME)/.local/include/eigen3
+# Private complete Boost for nextpnr (Linux). The ~/.local Boost from
+# OpenROAD's DependencyInstaller is unusable for nextpnr: its headers (1.87)
+# and libs (1.89) disagree so FindBoost rejects the whole package, and
+# filesystem/program_options were never built. Build a self-contained static
+# Boost here (openxc7-boost) with exactly the four libs nextpnr links.
+BOOST_PREFIX ?= $(HOME)/.local/opt/boost-nextpnr
+BOOST_VERSION ?= 1.87.0
+BOOST_USCORE  := $(subst .,_,$(BOOST_VERSION))
 endif
 
 openxc7: openxc7-nextpnr openxc7-prjxray openxc7-chipdb
@@ -225,40 +233,84 @@ openxc7-prjxray:
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
 	$(BREW)/bin/cmake --build prjxray/build -j$(JOBS)
 	test -d openxc7-venv || uv venv --python 3.11 --seed openxc7-venv
-	./openxc7-venv/bin/pip install --quiet -r prjxray/requirements.txt
+	# pip from inside prjxray/: requirements.txt has `-e third_party/fasm`
+	# and `-e .` whose RELATIVE paths only resolve with CWD=prjxray.
+	cd prjxray && $(ROOT)/openxc7-venv/bin/pip install --quiet -r requirements.txt
 	ln -sf ../prjxray/build/tools/xc7frames2bit bin/xc7frames2bit
 	printf '#!/bin/sh\nexec "%s/openxc7-venv/bin/python" "%s/prjxray/utils/fasm2frames.py" "$$@"\n' \
 		"$(ROOT)" "$(ROOT)" > bin/fasm2frames
 	chmod +x bin/fasm2frames
 else
-# Linux (UNTESTED — validated only on macOS so far; mirrors the macOS fixes
-# plus this repo's ~/.local conventions). Prereqs, same tree the other Linux
-# recipes use: boost + eigen3 under ~/.local (OpenROAD's DependencyInstaller,
-# see the openroad target) and the newer cmake/gmake on ~/.local/bin (system
-# cmake on Rocky 8 is too old for prjxray's vendored gflags/abseil even with
-# the policy floor). CMAKE_PREFIX_PATH points cmake at ~/.local so it finds
-# boost/eigen; OpenMP is available so it stays on.
-openxc7-nextpnr:
+# Linux (validated end-to-end on AlmaLinux/Rocky 8.10, gcc 12.3.0: synth ->
+# nextpnr PnR -> fasm2frames -> xc7frames2bit on the arty-a35 blinky).
+# Uses this repo's ~/.local dep tree (eigen3, newer cmake/gmake on
+# ~/.local/bin; system cmake on Rocky 8 is too old for prjxray's vendored
+# gflags/abseil even with the policy floor) plus a PRIVATE Boost — see
+# openxc7-boost below for why ~/.local Boost can't be used here.
+#
+# Two Linux-only fixups vs the macOS recipe:
+#  * Boost: built static into BOOST_PREFIX and pinned with BOOST_ROOT +
+#    Boost_NO_BOOST_CMAKE/NO_SYSTEM_PATHS so cmake ignores the shadowing
+#    ~/.local 1.87 BoostConfig; Boost_USE_STATIC_LIBS keeps the binary free
+#    of a runtime libboost_*.so search path. gcc-runtime libstdc++ resolves
+#    via the baked LD_RUN_PATH from site-env.sh (issue #6), as for every
+#    other tool here.
+#  * Eigen: the ~/.local Eigen3Config sets EIGEN3_DEFINITIONS to
+#    "EIGEN_MPL2_ONLY" with NO -D, so nextpnr's add_definitions() feeds the
+#    compiler a bare token (a phantom "linker input file"). Rewrite that one
+#    line to the well-formed flag; submodules are `ignore = dirty`, so the
+#    edit is expected and idempotent (it no-ops once applied).
+openxc7-nextpnr: openxc7-boost
 	cd nextpnr-xilinx && git submodule update --init --recursive
+	sed -i 's|add_definitions($${EIGEN3_DEFINITIONS})|add_definitions(-DEIGEN_MPL2_ONLY)|' \
+		nextpnr-xilinx/CMakeLists.txt
 	PATH="$(HOME)/.local/bin:$$PATH" cmake -S nextpnr-xilinx -B nextpnr-xilinx/build \
 		-DARCH=xilinx -DBUILD_GUI=OFF -DBUILD_PYTHON=OFF -DBUILD_TESTS=OFF \
 		-DUSE_OPENMP=ON -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools \
 		-DCMAKE_PREFIX_PATH=$(HOME)/.local \
-		-DEIGEN3_INCLUDE_DIRS=$(EIGEN3_INC)
+		-DEIGEN3_INCLUDE_DIRS=$(EIGEN3_INC) \
+		-DBOOST_ROOT=$(BOOST_PREFIX) -DBoost_NO_BOOST_CMAKE=ON \
+		-DBoost_NO_SYSTEM_PATHS=ON -DBoost_USE_STATIC_LIBS=ON
 	PATH="$(HOME)/.local/bin:$$PATH" cmake --build nextpnr-xilinx/build -j$(JOBS)
 	ln -sf ../nextpnr-xilinx/build/nextpnr-xilinx bin/nextpnr-xilinx
 	ln -sf ../nextpnr-xilinx/build/bbasm bin/bbasm
 
+# Private, self-contained static Boost for nextpnr (the four libs it links).
+# Built once into BOOST_PREFIX and skipped if already present. Needed because
+# the ~/.local Boost (OpenROAD's DependencyInstaller) is both incomplete
+# (no filesystem/program_options) and internally inconsistent (1.87 headers,
+# 1.89 libs), which makes FindBoost reject it outright.
+openxc7-boost:
+	test -f $(BOOST_PREFIX)/lib/libboost_filesystem.a || ( set -e; \
+		mkdir -p $(HOME)/.local/src && cd $(HOME)/.local/src; \
+		test -f boost_$(BOOST_USCORE).tar.bz2 || curl -fsSLO \
+			https://archives.boost.io/release/$(BOOST_VERSION)/source/boost_$(BOOST_USCORE).tar.bz2; \
+		rm -rf boost_$(BOOST_USCORE) && tar xf boost_$(BOOST_USCORE).tar.bz2; \
+		cd boost_$(BOOST_USCORE); \
+		./bootstrap.sh --prefix=$(BOOST_PREFIX) \
+			--with-libraries=filesystem,thread,program_options,iostreams; \
+		./b2 -j$(JOBS) --prefix=$(BOOST_PREFIX) link=static \
+			threading=multi variant=release install )
+
 openxc7-prjxray:
 	cd prjxray && git submodule update --init --recursive
+	# prjxray's OpenSafeFile flock()s every db file it reads. The prjxray-db
+	# lives on the /auto/share NFS4 mount, where flock is unsupported and
+	# raises EBADF -> fasm2frames dies (exit 1) before emitting any frames.
+	# The db is read-only here, so drop the (LOCK_EX/LOCK_UN) flock calls;
+	# idempotent (no-ops once applied). submodules are `ignore = dirty`.
+	sed -i 's|fcntl.flock(self.fd.fileno(), fcntl.LOCK_EX)|pass  # rb_tools(nfs): flock unsupported on /auto/share NFS4|; s|fcntl.flock(self.fd.fileno(), fcntl.LOCK_UN)|pass  # rb_tools(nfs): flock unsupported on /auto/share NFS4|' \
+		prjxray/prjxray/util.py
 	PATH="$(HOME)/.local/bin:$$PATH" cmake -S prjxray -B prjxray/build \
 		-DCMAKE_BUILD_TYPE=Release -DPRJXRAY_BUILD_TESTING=OFF \
 		-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 		-DCMAKE_PREFIX_PATH=$(HOME)/.local
 	PATH="$(HOME)/.local/bin:$$PATH" cmake --build prjxray/build -j$(JOBS)
 	test -d openxc7-venv || uv venv --python 3.11 --seed openxc7-venv
-	./openxc7-venv/bin/pip install --quiet -r prjxray/requirements.txt
+	# pip from inside prjxray/: requirements.txt has `-e third_party/fasm`
+	# and `-e .` whose RELATIVE paths only resolve with CWD=prjxray.
+	cd prjxray && $(ROOT)/openxc7-venv/bin/pip install --quiet -r requirements.txt
 	ln -sf ../prjxray/build/tools/xc7frames2bit bin/xc7frames2bit
 	printf '#!/bin/sh\nexec "%s/openxc7-venv/bin/python" "%s/prjxray/utils/fasm2frames.py" "$$@"\n' \
 		"$(ROOT)" "$(ROOT)" > bin/fasm2frames
