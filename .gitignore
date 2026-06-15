@@ -2,6 +2,9 @@
 # covered by ignore = dirty in .gitmodules).
 /tools/
 /sby-venv/
+# Generated per-machine by `make openxc7-prjxray` (printf > bin/fasm2frames):
+# it bakes in absolute repo/venv paths, so it must not be tracked.
+/bin/fasm2frames
 
 # User-local machine-specific scripts (kept untracked on purpose)
 /repoint_usr_local_bin.zsh
