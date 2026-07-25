@@ -12,7 +12,7 @@
 	path = verilator
 	url = https://github.com/rtl-buddy/verilator
 	ignore = dirty
-	branch = rtl-buddy
+	branch = rtl-buddy-5.050
 [submodule "surfer"]
 	path = surfer
 	url = https://github.com/rtl-buddy/surfer.git
