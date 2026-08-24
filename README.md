@@ -14,9 +14,10 @@ cd rtl-buddy-tools
 
 # prerequisites — Apple Silicon or Intel (brew prefix auto-detected);
 # Xcode CLT assumed (xcode-select --install)
-brew tap chipsalliance/verible   # verible is not in homebrew-core
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov verible icarus-verilog z3 yices2 uv make
+             gtkwave graphviz lcov icarus-verilog z3 yices2 uv make bazelisk
+# bazelisk is required by `make verible` (bazel source build; the Makefile
+# pins the bazel version verible's own CI uses via USE_BAZEL_VERSION)
 # brew `make` (GNU make 4.x) is required by `make verilator`: Apple's make
 # 3.81 mishandles verilator's .SECONDARY intermediates and silently never
 # links verilator_coverage_bin_dbg (install then fails with Error 71).
@@ -53,7 +54,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 # OpenROAD's boost/eigen/lemon/cudd/or-tools/swig deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -common -prefix=$HOME/.local && cd ..
 
-cp site-env.sh.example site-env.sh   # machine-local env (gcc/ccache runtime, verible, SystemC, node) — adjust paths
+cp site-env.sh.example site-env.sh   # machine-local env (gcc/ccache runtime, SystemC, node) — adjust paths
 make all          # everything (OpenROAD is the long pole)
 source env-linux.sh   # sources site-env.sh, then puts bin/ + ~/.local/bin + ~/.cargo/bin on PATH
 ```
@@ -68,8 +69,11 @@ Linux notes:
   `verilator_bin: libatomic.so.1: cannot open shared object file`, then
   `make: ccache: Command not found`, then a system g++ 8.5 fallback (issue #6).
   macOS doesn't use `env-linux.sh`/`site-env.sh` at all (Homebrew on PATH).
-- verible / gtkwave / graphviz come from the site (`module load verible`,
-  system graphviz) — not built here.
+- gtkwave / graphviz come from the site (system graphviz) — not built here.
+  verible IS handled here: `make verible` on Linux downloads the official
+  prebuilt linux-static release binary for the pinned tag (no bazel, no
+  root needed — site machines like exptw have neither), so `module load
+  verible` is no longer used.
 - `env-linux.sh` also unsets `VERILATOR_ROOT`, which site verilator modules
   export and which would misdirect this repo's verilator wrapper.
 - klayout is not installed (needs root or an AppImage); `rb pnr --gds/--png`
@@ -96,6 +100,7 @@ Verify with rtl_buddy: `rb tool-check`.
 | `surfer` | rtl-buddy/surfer | branch `rtl-buddy` | WCP extensions (`set_scope`, `query_variable_values`, `time_unit`) required by `rb wave` / hub bridge; mainline lacks them (see rtl_buddy `docs/install.md`) |
 | `verilator` | rtl-buddy/verilator | branch `rtl-buddy` (v5.048 + patch) | v5.048 + backport of the V3TSP variable-ordering data-race fix (upstream PR #7752 / issues #7194, #5756): the global edge-id counter races under `--threads>1 -j>1` → `V3TSP.cpp: No unmarked edges found in tour`. No released verilator (≤ v5.048) has the fix; upstream `master`/5.049-devel removed V3TSP entirely. Re-point to a v5.049 tag once released |
 | `sby` | YosysHQ/sby | `v0.66` | official release |
+| `verible` | chipsalliance/verible | `v0.0-4148-g1ea007ec` | upstream release pin (no fork). One version everywhere for `rb verible`/`rb hier`/xeno CST parsing, instead of a drifting brew install (macOS) + site module (Linux). macOS: bazel source build; Linux: the official linux-static release binary for the same tag (site machines have no bazel/root) |
 | `OpenROAD` | The-OpenROAD-Project/OpenROAD | `731f8ff5a4` (26Q2+911) | the bare `26Q2` tag crashes `rb power` static/dynamic on macOS; this is the validated commit |
 | `veridian` | vivekmalneedi/veridian | master | upstream has no release tags |
 | `nextpnr-xilinx` | openXC7/nextpnr-xilinx | `f681eb3a` | OPTIONAL — open FPGA place-and-route for `rb fpga tool: openxc7`; pin matches the openXC7 toolchain-installer's validated ref |
@@ -170,7 +175,7 @@ older rtl_buddy, point the project config (`plugin-path` /
 ## Not managed here
 
 - klayout — install the [app bundle](https://www.klayout.de/build.html).
-- iverilog, verible, z3, yices, graphviz, gtkwave, lcov, marimo — homebrew
+- iverilog, z3, yices, graphviz, gtkwave, lcov, marimo — homebrew
   (covered by the brew line above).
 - rtl-buddy-view / rtl-buddy-cdc / rtl-buddy-axi-profiler / info-process —
   per-project python deps (`uv` / pip), not shared binaries.
