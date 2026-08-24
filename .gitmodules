@@ -42,3 +42,6 @@
 	path = prjxray-db
 	url = https://github.com/openXC7/prjxray-db.git
 	ignore = dirty
+[submodule "verible"]
+	path = verible
+	url = https://github.com/chipsalliance/verible

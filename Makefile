@@ -42,10 +42,10 @@ SHELL := /bin/bash
 VMAKE ?= $(MAKE)
 endif
 
-.PHONY: all yosys yosys-slang verilator surfer veridian sby openroad \
+.PHONY: all yosys yosys-slang verilator surfer veridian sby verible openroad \
         openxc7 openxc7-boost openxc7-nextpnr openxc7-prjxray openxc7-chipdb
 
-all: yosys yosys-slang verilator surfer veridian sby openroad
+all: yosys yosys-slang verilator surfer veridian sby verible openroad
 
 # `openxc7` (the open FPGA toolchain — nextpnr-xilinx + prjxray + a
 # per-part nextpnr chipdb) is OPTIONAL and intentionally NOT part of `all`:
@@ -156,6 +156,38 @@ openroad:
 		"-DCMAKE_EXE_LINKER_FLAGS=-L$(HOME)/.local/lib -L$(HOME)/.local/lib64" \
 		"-DCMAKE_SHARED_LINKER_FLAGS=-L$(HOME)/.local/lib -L$(HOME)/.local/lib64"
 	$(MAKE) -C OpenROAD/build -j$(JOBS)
+endif
+
+# verible — chipsalliance/verible submodule pinned at an upstream RELEASE
+# tag (an upstream pin, not a fork). Both OS recipes resolve the version
+# from the SAME pin (git describe on the submodule), so bumping the
+# submodule pointer moves both OSes together.
+#   Darwin: source build via bazel (brew bazelisk; USE_BAZEL_VERSION pins
+#     the bazel verible's own macOS CI uses — the tree has no .bazelversion,
+#     so an unpinned bazelisk would grab latest bazel, untested upstream).
+#     Installed with verible's own .github/bin/simple-install.sh (the
+#     repo's macOS install path; there is no runnable :install target).
+#   Linux: NO bazel required — sites like exptw have no bazel, no root and
+#     an NFS home, so building is out; instead download the official
+#     prebuilt linux-static tarball for the SAME tag + arch from GitHub
+#     releases (network at build time is already assumed by openxc7-boost).
+# Binaries land in tools/bin; bin/ holds the committed relative symlinks.
+VERIBLE_BAZEL ?= 7.6.1
+ifeq ($(UNAME),Darwin)
+verible:
+	cd verible && USE_BAZEL_VERSION=$(VERIBLE_BAZEL) PATH="$(BREW)/bin:$$PATH" \
+		bazel build -c opt --noshow_progress \
+		--cxxopt=-Wno-range-loop-analysis :install-binaries
+	cd verible && ./.github/bin/simple-install.sh $(ROOT)/tools/bin
+else
+verible:
+	set -e; tag=$$(git -C verible describe --tags --match='v*'); \
+	arch=$$(uname -m); tb=verible-$$tag-linux-static-$$arch.tar.gz; \
+	mkdir -p tools/bin tools/src; \
+	test -f tools/src/$$tb || curl -fsSL -o tools/src/$$tb \
+		https://github.com/chipsalliance/verible/releases/download/$$tag/$$tb; \
+	tar -C tools/src -xzf tools/src/$$tb; \
+	install tools/src/verible-$$tag/bin/* tools/bin/
 endif
 
 # ===========================================================================

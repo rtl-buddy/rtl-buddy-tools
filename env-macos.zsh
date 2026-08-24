@@ -4,7 +4,7 @@
 # script that links here); readlink -f (macOS >= 12.3) resolves to this
 # repo regardless.
 #
-# Unlike Linux, the prerequisites (z3, yices, verible, iverilog, ...) come
+# Unlike Linux, the prerequisites (z3, yices, iverilog, ...) come
 # from Homebrew and are already on PATH; this script only adds the pinned
 # in-repo tools plus the env knobs rb needs beyond PATH.
 _RB_TOOLS_SRC="${(%):-%N}"

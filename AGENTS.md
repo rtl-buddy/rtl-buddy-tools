@@ -28,9 +28,10 @@ across per-user workspaces. It is consumed two ways:
 Makefile                  # the build recipe per tool — the source of truth
                           #   (recipes branch on `uname -s`: Darwin / Linux)
 bin/                      # committed relative symlinks to every built binary
-<submodules>              # yosys, yosys-slang, verilator, surfer, sby, OpenROAD, veridian
+<submodules>              # yosys, yosys-slang, verilator, surfer, sby, verible, OpenROAD, veridian
                           #   + OPTIONAL openXC7: nextpnr-xilinx, prjxray, prjxray-db
-tools/                    # gitignored install prefix (verilator, sby, openXC7 chipdb)
+tools/                    # gitignored install prefix (verilator, sby, verible, openXC7 chipdb)
+                          #   + tools/src: cached verible linux-static release tarball
 sby-venv/                 # gitignored python venv for the sby launcher
 openxc7-venv/             # gitignored python venv (prjxray reqs) for fasm2frames
 install-prereqs-linux.sh  # Linux: user-space deps brew provides on macOS (-> ~/.local)
@@ -75,7 +76,17 @@ commit, generalize, or delete them.
    is an exec wrapper, not a symlink) and the Makefile passes
    `YOSYS_RELEASE_VERSION` explicitly because `git describe` inside sby's own
    Makefile resolves empty under an absorbed submodule gitdir.
-7. **macOS and Linux recipes coexist; don't cross-contaminate.** The
+7. **verible is an upstream release pin, consumed two ways.** The submodule
+   points at a chipsalliance/verible RELEASE tag and both OS recipes derive
+   the version from that one pin (`git describe`): macOS builds from source
+   with bazel (bazelisk + `USE_BAZEL_VERSION` pinning the bazel verible's
+   own CI uses — the tree has no `.bazelversion`), Linux downloads the
+   official prebuilt linux-static tarball for the same tag (site machines
+   like exptw have no bazel and no root). Bumping the pin therefore means:
+   move the submodule to another *release* tag (a bare master commit has no
+   release assets → the Linux recipe 404s), `make verible` on each OS,
+   re-validate.
+8. **macOS and Linux recipes coexist; don't cross-contaminate.** The
    Makefile branches on `uname -s` — when touching one OS's recipe, leave
    the other branch byte-identical (the Darwin recipe is the original,
    validated one). Linux-only failure modes the recipe flags guard against
@@ -91,14 +102,14 @@ commit, generalize, or delete them.
      `-L ~/.local/lib{,64}`
    - site modules export `VERILATOR_ROOT` → must be unset to build AND run
      (env-linux.sh does this)
-8. **Moving a Linux checkout re-embeds paths.** `tools/bin/sby` (venv
+9. **Moving a Linux checkout re-embeds paths.** `tools/bin/sby` (venv
    shebang) and the verilator install (configure-time prefix) hardcode the
    absolute repo path: after a move, `rm -rf sby-venv && make sby` and
    `make verilator`, and delete stale verilator `obj_dir*` caches in
    consuming projects (their generated makefiles point at the old prefix).
    Prefer the canonical physical path (not a symlinked `$HOME` view) so
    embedded paths work for every user of a shared checkout.
-9. **Commit style:** a pin bump is one commit containing the submodule pointer,
+10. **Commit style:** a pin bump is one commit containing the submodule pointer,
    any Makefile/README/AGENTS.md updates it forces, and a body that names the
    validation performed. Never commit `tools/`, `sby-venv/`, or build outputs.
 

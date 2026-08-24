@@ -2,7 +2,7 @@
 # install-prereqs-linux.sh — user-space installs of the deps that brew provides
 # on macOS (README "brew install" line) but Rocky 8 lacks, into $PREFIX.
 # Covers: gperf (build dep), z3, iverilog, lcov, yices2.
-# Not handled: verible (module load verible), gtkwave/graphviz (system),
+# Not handled: gtkwave/graphviz (system),
 # klayout (no root; install separately if rb pnr GDS export is needed).
 set -uo pipefail
 PREFIX="${PREFIX:-$HOME/.local}"

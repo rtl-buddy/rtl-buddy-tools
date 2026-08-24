@@ -33,7 +33,7 @@ export RTL_BUDDY_SLANG_PLUGIN="$_RB_TOOLS_ROOT/yosys-slang/build/slang.so"
 export CHIPDB="$_RB_TOOLS_ROOT/tools/share/nextpnr/chipdb"
 export PRJXRAY_DB_DIR="$_RB_TOOLS_ROOT/prjxray-db"
 
-# Machine-specific additions (e.g. a verible module dir on PATH, a SystemC
+# Machine-specific additions (e.g. a SystemC
 # lib64 on LD_LIBRARY_PATH) live in an untracked sibling site-env.sh —
 # same user-local convention as the top-level *.zsh scripts (AGENTS.md).
 [ -f "$_RB_TOOLS_ROOT/site-env.sh" ] && . "$_RB_TOOLS_ROOT/site-env.sh"

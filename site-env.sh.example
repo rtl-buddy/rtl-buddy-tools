@@ -21,8 +21,8 @@
 # rb_tools_shared default). The gcc-14 toolchain swaps 12.3.0 -> 14.2.0 in every
 # gcc path below; other machines adjust the install prefixes to taste.
 
-# verible — from the site module tree (not built by this repo).
-export PATH="/auto/tools/installs/verible/v0.0-3960-g1f2b094d/bin:$PATH"
+# verible — now installed by `make verible` into tools/bin (official
+# linux-static release binary at the pinned tag); no site module needed.
 
 # SystemC: the module exports .../lib but installs the libs under lib64/ —
 # cosim binaries need lib64 at run time, and the auto-emitted link line (which
