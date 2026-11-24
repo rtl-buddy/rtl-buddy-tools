@@ -2,17 +2,17 @@
 	path = yosys
 	url = https://github.com/rtl-buddy/yosys
 	ignore = dirty
-	branch = rtl-buddy
+	branch = rtl-buddy-0.71
 [submodule "yosys-slang"]
 	path = yosys-slang
 	url = https://github.com/rtl-buddy/yosys-slang
 	ignore = dirty
-	branch = rtl-buddy
+	branch = rtl-buddy-sv-elab
 [submodule "verilator"]
 	path = verilator
 	url = https://github.com/rtl-buddy/verilator
 	ignore = dirty
-	branch = rtl-buddy-5.050
+	branch = rtl-buddy-5.054
 [submodule "surfer"]
 	path = surfer
 	url = https://github.com/rtl-buddy/surfer.git
@@ -45,3 +45,11 @@
 [submodule "verible"]
 	path = verible
 	url = https://github.com/chipsalliance/verible
+[submodule "yices2"]
+	path = yices2
+	url = https://github.com/SRI-CSL/yices2
+	ignore = dirty
+[submodule "boolector"]
+	path = boolector
+	url = https://github.com/Boolector/boolector
+	ignore = dirty
