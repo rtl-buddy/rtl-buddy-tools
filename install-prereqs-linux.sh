@@ -92,17 +92,23 @@ fi
 
 # --- readline (yosys shell; skipped when readline-devel is installed) ---
 # Links the system libtinfo by full path: there is no libtinfo.so dev
-# symlink or ncurses.pc without ncurses-devel.
-# pkg-config with the same search dirs the Makefile gives yosys's CMake.
-has_pc() { PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/share/pkgconfig" pkg-config --exists "$1"; }
+# symlink or ncurses.pc without ncurses-devel. The compiler finds it in the
+# host's own library dirs (/usr/lib64 on Rocky, the multiarch dir on Debian
+# and Ubuntu).
+# pkg-config with the same search dirs the Makefile gives yosys's CMake:
+# $PREFIX first, then pkg-config's own system dirs (no PKG_CONFIG_PATH).
+SYS_PC=$(pkg-config --variable pc_path pkg-config)
+has_pc() { PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYS_PC" pkg-config --exists "$1"; }
 if ! has_pc readline; then
   log readline
+  TINFO=$(${CC:-gcc} -print-file-name=libtinfo.so.6)
+  [[ $TINFO == /* ]] || { echo "readline: no libtinfo.so.6 found by ${CC:-gcc}"; exit 1; }
   cd "$SRC"
   curl -fsSLO https://ftp.gnu.org/gnu/readline/readline-8.2.tar.gz
   tar xf readline-8.2.tar.gz && cd readline-8.2
   ./configure --prefix="$PREFIX" --disable-static --with-curses >/dev/null \
-    && make -j"$JOBS" SHLIB_LIBS=/usr/lib64/libtinfo.so.6 >/dev/null \
-    && make install SHLIB_LIBS=/usr/lib64/libtinfo.so.6 >/dev/null \
+    && make -j"$JOBS" SHLIB_LIBS="$TINFO" >/dev/null \
+    && make install SHLIB_LIBS="$TINFO" >/dev/null \
     && sed -i '/^Requires.private:/d' "$PREFIX/lib/pkgconfig/readline.pc" || { echo "readline FAILED"; fail=1; }
 fi
 

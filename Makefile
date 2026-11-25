@@ -68,11 +68,13 @@ yosys:
 else
 # bison >= 3.6, flex, readline and Tcl come from install-prereqs-linux.sh in
 # ~/.local (Rocky 8 ships bison 3.0.4 and no readline/Tcl headers).
-# PKG_CONFIG_LIBDIR: ~/.local/lib and the system dirs only, so a stray .pc
-# elsewhere in ~/.local/share/pkgconfig cannot hijack zlib & co.
+# PKG_CONFIG_LIBDIR: ~/.local/lib, then pkg-config's own system dirs (which
+# include the multiarch dir on Debian/Ubuntu), so a stray .pc elsewhere in
+# ~/.local/share/pkgconfig or on PKG_CONFIG_PATH cannot hijack zlib & co.
+SYS_PC := $(shell pkg-config --variable pc_path pkg-config 2>/dev/null)
 yosys:
 	PATH="$(HOME)/.local/bin:$$PATH" \
-	PKG_CONFIG_LIBDIR="$(HOME)/.local/lib/pkgconfig:/usr/lib64/pkgconfig:/usr/share/pkgconfig" \
+	PKG_CONFIG_LIBDIR="$(HOME)/.local/lib/pkgconfig:$(SYS_PC)" \
 		cmake -S yosys -B yosys/build -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools -DYOSYS_ENABLE_UNIT_TESTS=OFF \
 		-DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=OFF \
@@ -82,7 +84,11 @@ yosys:
 endif
 
 # Needs yosys installed first: built against tools/bin/yosys-config. Rebuilt
-# from scratch every time — the plugin links against the yosys ABI.
+# from scratch every time — the plugin links against the yosys ABI. When this
+# run also builds yosys (`make all`, `make yosys yosys-slang`), yosys finishes
+# first, also under -j; `make yosys-slang` alone does not rebuild yosys.
+YOSYS_FIRST := $(if $(filter all yosys,$(or $(MAKECMDGOALS),all)),yosys)
+yosys-slang: $(YOSYS_FIRST)
 ifeq ($(UNAME),Darwin)
 yosys-slang:
 	rm -rf yosys-slang/build
@@ -146,8 +152,11 @@ boolector:
 		&& ./configure.sh --prefix $(ROOT)/tools'
 	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C boolector/build -j$(JOBS) install
 else
+# The contrib scripts take their -j from `nproc` (setup-utils.sh overwrites
+# NPROC), so a bash function stands in for it to keep them to JOBS.
 boolector:
-	cd boolector && rm -rf deps build && $(BTOR_ENV) sh -c '\
+	cd boolector && rm -rf deps build && $(BTOR_ENV) bash -c '\
+		nproc() { echo $(JOBS); }; export -f nproc; \
 		./contrib/setup-lingeling.sh && ./contrib/setup-cadical.sh && ./contrib/setup-btor2tools.sh \
 		&& CMAKE_OPTS="-DCMAKE_INSTALL_RPATH=\$$ORIGIN/../lib64;\$$ORIGIN/../lib" ./configure.sh --shared --prefix $(ROOT)/tools'
 	$(MAKE) -C boolector/build -j$(JOBS) install

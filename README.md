@@ -43,7 +43,7 @@ source env-macos.zsh  # puts bin/ on PATH, unsets VERILATOR_ROOT,
 
 ## Quick start (Linux — validated on Rocky 8.10, no root)
 
-Assumes a toolchain with gcc >= 12 and cmake >= 3.16 on PATH (e.g. via
+Assumes a toolchain with gcc >= 12 and cmake >= 3.28 on PATH (Yosys 0.71's minimum) (e.g. via
 `module load gcc cmake`) plus system `zlib-devel libffi-devel`. Everything
 else installs to `~/.local` / `~/.cargo` (readline and Tcl too, when
 `readline-devel` / `tcl-devel` are absent; yices builds its own static GMP):
