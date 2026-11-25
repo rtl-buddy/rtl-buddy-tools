@@ -59,12 +59,19 @@ all: yosys yosys-slang yices boolector verilator surfer veridian sby verible ope
 # rtl-buddy plugin below overrides it when loaded.
 ifeq ($(UNAME),Darwin)
 # yosys's CMake adds every Homebrew Cellar package to its search path itself
-# (cmake/UseHomebrew.cmake): bison, flex, readline, tcl-tk, libffi.
+# (cmake/UseHomebrew.cmake): bison, flex, readline, tcl-tk, libffi. It finds
+# readline, Tcl and libffi only through pkg-config (brew pkgconf) and builds
+# without them, silently, when pkg-config is missing. PKG_CONFIG_PATH pins Tcl
+# to tcl-tk@8: an unversioned brew tcl-tk (9.x) must not be picked up. The
+# last step fails the recipe if the installed yosys has no Tcl.
 yosys:
+	PKG_CONFIG_PATH="$(BREW)/opt/tcl-tk@8/lib/pkgconfig" \
 	$(BREW)/bin/cmake -S yosys -B yosys/build -DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools -DYOSYS_ENABLE_UNIT_TESTS=OFF
 	$(BREW)/bin/cmake --build yosys/build -j$(JOBS)
 	$(BREW)/bin/cmake --install yosys/build
+	printf 'puts "yosys tcl [info patchlevel]"\n' > yosys/build/tcl-check.tcl
+	tools/bin/yosys -q -c yosys/build/tcl-check.tcl
 else
 # bison >= 3.6, flex, readline and Tcl come from install-prereqs-linux.sh in
 # ~/.local (Rocky 8 ships bison 3.0.4 and no readline/Tcl headers).

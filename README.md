@@ -15,7 +15,7 @@ cd rtl-buddy-tools
 # prerequisites — Apple Silicon or Intel (brew prefix auto-detected);
 # Xcode CLT assumed (xcode-select --install)
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov icarus-verilog gmp gperf autoconf \
+             gtkwave graphviz lcov icarus-verilog gmp gperf autoconf pkgconf \
              uv make bazelisk
 # bazelisk is required by `make verible` (bazel source build; the Makefile
 # pins the bazel version verible's own CI uses via USE_BAZEL_VERSION)
@@ -27,6 +27,8 @@ brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
 # the ambient python3 (see SBY_PYTHON in the Makefile). Usually already present
 # wherever rb is installed.
 # gmp/gperf/autoconf: `make yices` (pinned source build, GMP linked statically).
+# pkgconf: yosys's CMake finds readline, Tcl (tcl-tk@8) and libffi through
+# pkg-config only; without it yosys builds with Tcl off.
 # Do not also `brew install yices2`: the pinned build must win on PATH.
 # z3 is not from brew either: `make sby` pins it (z3-solver wheel, bin/z3).
 # Rust toolchain (surfer, veridian): https://rustup.rs
