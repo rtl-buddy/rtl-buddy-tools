@@ -52,15 +52,17 @@ commit, generalize, or delete them.
    Do not "upgrade" them to upstream releases without re-running the
    validation below — stock upstream is known to break rtl_buddy flows
    (yosys v0.66: `Only PACKED supported`; mainline surfer: missing WCP
-   commands; povik yosys-slang master: no SVA `|->` lowering until
-   povik/yosys-slang#317 merges).
+   commands; upstream yosys-slang / yosys's built-in `sv-elab`: "unsupported
+   SVA feature" on sequences, `|=>` and, in some contexts, `|->`).
 2. **rtl_buddy docs are the authority** for which repo/branch each tool comes
    from. When a fork's reason disappears upstream (e.g. #317 merges), the
    docs flip first; follow them, re-validate, then move the pin here.
 3. **yosys and yosys-slang move together.** The plugin links against the
    yosys ABI — after changing the yosys pin or rebuilding yosys, always
-   `make yosys-slang` (the Makefile target does a full plugin rebuild only if
-   you `rm -rf yosys-slang/build` first; do that across ABI changes).
+   `make yosys-slang` (the target always rebuilds the plugin from scratch).
+   The yosys-slang fork branch is based on the exact `sv-elab` revision the
+   yosys pin builds in (`frontends/slang/lib` in the yosys tree); when the
+   yosys pin moves, rebase the fork's commits onto the new revision.
 4. **The OpenROAD cmake flags are all load-bearing on macOS.** Known failure
    modes if removed:
    - no `CMAKE_DISABLE_FIND_PACKAGE_Qt5` → broken brew Qt5 plugin refs abort configure
@@ -95,8 +97,12 @@ commit, generalize, or delete them.
      also need `help2man` (both via install-prereqs-linux.sh → ~/.local)
    - system `gmake` 4.2.1 picked up by cmake → `invalid --jobserver-auth
      string 'fifo:...'` under make ≥ 4.4 (the prereq script aliases gmake)
-   - in-tree `yosys-config --cxxflags` emits its baked-in `/usr/local`
-     include dir → yosys-slang needs `-DCMAKE_CXX_FLAGS=-I$(ROOT)/yosys`
+   - no readline/Tcl headers without the devel packages → the prereq
+     script builds both into ~/.local; yosys's CMake finds them through
+     pkg-config with `PKG_CONFIG_LIBDIR` pinned (a stray `.pc` elsewhere in
+     ~/.local can otherwise shadow zlib) and links them by RUNPATH
+   - Boolector links its binaries `-static` unless built `--shared`, and
+     glibc hosts rarely ship `libc.a` → `cannot find -lc`
    - or-tools' bundled Boost-1.87 cmake configs shadow the installer-built
      1.89 → pin `Boost_DIR`; bare `-lyaml-cpp` test links need explicit
      `-L ~/.local/lib{,64}`
@@ -104,14 +110,22 @@ commit, generalize, or delete them.
      (env-linux.sh does this)
 9. **Moving a Linux checkout re-embeds paths.** `tools/bin/sby` (venv
    shebang) and the verilator install (configure-time prefix) hardcode the
-   absolute repo path: after a move, `rm -rf sby-venv && make sby` and
-   `make verilator`, and delete stale verilator `obj_dir*` caches in
+   absolute repo path, as does the yosys install (`yosys-config`, and the
+   plugin built against it): after a move, `rm -rf sby-venv && make sby`,
+   `rm -rf yosys/build && make yosys yosys-slang` and `make verilator`, and delete stale verilator `obj_dir*` caches in
    consuming projects (their generated makefiles point at the old prefix).
    Prefer the canonical physical path (not a symlinked `$HOME` view) so
    embedded paths work for every user of a shared checkout.
 10. **Commit style:** a pin bump is one commit containing the submodule pointer,
    any Makefile/README/AGENTS.md updates it forces, and a body that names the
    validation performed. Never commit `tools/`, `sby-venv/`, or build outputs.
+11. **yices is pinned to a release (`yices-2.8.0`), chosen by measurement.**
+    Solver revisions change which k-induction proofs close at all: the
+    `yices-2.7.0` tag and 2.6.x do not close proofs that 2.8.0 closes in
+    minutes. Before moving the pin, time a known slow k-induction proof on the
+    old and new revision, side by side. Builds of different commits can report
+    the same version number, so compare `yices-smt2 --version`'s `Revision:`
+    line when checking an install.
 
 ## Validation procedure (run before committing any pin change)
 
@@ -139,9 +153,8 @@ project-local stale paths, `power postpnr`) are not.
   against the *project root* — i.e. they expect a workspace-sibling
   `yosys-slang`. When consolidating a workspace, leave a symlink
   `<workspace>/yosys-slang -> <this repo>/yosys-slang`.
-- An in-tree yosys build embeds `/usr/local/share/yosys` as datdir but
-  resolves its real share dir from the binary's location — symlinking the
-  binary is fine; copying it is not.
+- yosys is installed into `tools/` and resolves its share dir from the
+  binary's location — symlinking the binary is fine; copying it is not.
 - `verilator` must be `./configure --prefix=<this repo>/tools && make install`;
   the wrapper hardcodes configure-time paths, so symlinking an uninstalled
   in-tree build breaks data-file resolution.

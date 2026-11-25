@@ -15,7 +15,8 @@ cd rtl-buddy-tools
 # prerequisites — Apple Silicon or Intel (brew prefix auto-detected);
 # Xcode CLT assumed (xcode-select --install)
 brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
-             gtkwave graphviz lcov icarus-verilog z3 yices2 uv make bazelisk
+             gtkwave graphviz lcov icarus-verilog gmp gperf autoconf pkgconf \
+             uv make bazelisk
 # bazelisk is required by `make verible` (bazel source build; the Makefile
 # pins the bazel version verible's own CI uses via USE_BAZEL_VERSION)
 # brew `make` (GNU make 4.x) is required by `make verilator`: Apple's make
@@ -25,13 +26,18 @@ brew install bison flex cmake llvm boost eigen spdlog or-tools tcl-tk@8 swig \
 # sby's venv on uv's CPython 3.11 — the same interpreter rb runs on, instead of
 # the ambient python3 (see SBY_PYTHON in the Makefile). Usually already present
 # wherever rb is installed.
+# gmp/gperf/autoconf: `make yices` (pinned source build, GMP linked statically).
+# pkgconf: yosys's CMake finds readline, Tcl (tcl-tk@8) and libffi through
+# pkg-config only; without it yosys builds with Tcl off.
+# Do not also `brew install yices2`: the pinned build must win on PATH.
+# z3 is not from brew either: `make sby` pins it (z3-solver wheel, bin/z3).
 # Rust toolchain (surfer, veridian): https://rustup.rs
 # OpenROAD's lemon/cudd deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -prefix $HOME/.local && cd ..
 
 make all          # everything (OpenROAD takes hours)
 # or individually, e.g.:
-make yosys yosys-slang verilator surfer sby
+make yosys yosys-slang yices boolector verilator surfer sby
 
 source env-macos.zsh  # puts bin/ on PATH, unsets VERILATOR_ROOT,
                       # exports RTL_BUDDY_SLANG_PLUGIN
@@ -39,9 +45,10 @@ source env-macos.zsh  # puts bin/ on PATH, unsets VERILATOR_ROOT,
 
 ## Quick start (Linux — validated on Rocky 8.10, no root)
 
-Assumes a toolchain with gcc >= 12 and cmake >= 3.16 on PATH (e.g. via
-`module load gcc cmake`) plus system `tcl-devel readline-devel zlib-devel
-libffi-devel gmp-devel`. Everything else installs to `~/.local` / `~/.cargo`:
+Assumes a toolchain with gcc >= 12 and cmake >= 3.28 on PATH (Yosys 0.71's minimum) (e.g. via
+`module load gcc cmake`) plus system `zlib-devel libffi-devel`. Everything
+else installs to `~/.local` / `~/.cargo` (readline and Tcl too, when
+`readline-devel` / `tcl-devel` are absent; yices builds its own static GMP):
 
 ```sh
 git clone --recursive https://github.com/rtl-buddy/rtl-buddy-tools.git
@@ -49,7 +56,8 @@ cd rtl-buddy-tools
 
 # Rust toolchain (surfer, veridian):
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-# bison 3.8, gperf, help2man, yaml-cpp, z3, yices2, iverilog, lcov, gmake alias:
+# bison 3.8, flex, gperf, readline, Tcl, help2man, yaml-cpp, iverilog, lcov,
+# gmake alias:
 ./install-prereqs-linux.sh
 # OpenROAD's boost/eigen/lemon/cudd/or-tools/swig deps (once):
 #   cd OpenROAD && ./etc/DependencyInstaller.sh -common -prefix=$HOME/.local && cd ..
@@ -95,11 +103,13 @@ Verify with rtl_buddy: `rb tool-check`.
 
 | Submodule | Source | Pin | Why |
 |---|---|---|---|
-| `yosys` | rtl-buddy/yosys | branch `rtl-buddy` (v0.64 + patches) | rtl_buddy `docs/concepts/synthesis.md#installing-yosys` mandates the fork: it adds unpacked-struct tolerance, `import pkg::name` lexing, packed-struct-array support. Stock upstream (tested v0.66) fails rtl_buddy synth (`Only PACKED supported`) |
-| `yosys-slang` | rtl-buddy/yosys-slang | branch `rtl-buddy` | SVA implication lowering for `rb fpv frontend: slang`; switch to povik master once [povik/yosys-slang#317](https://github.com/povik/yosys-slang/pull/317) merges (see rtl_buddy `docs/concepts/fpv.md`) |
+| `yosys` | rtl-buddy/yosys | branch `rtl-buddy-0.71` (`a5026b6`: v0.71 + patches) | rtl_buddy `docs/concepts/synthesis.md#installing-yosys` mandates the fork: it adds unpacked-struct tolerance, `import pkg::name` lexing, packed-struct-array support. Stock upstream (tested v0.66) fails rtl_buddy synth (`Only PACKED supported`). CMake build (yosys >= 0.67 has no Makefile build), installed into `tools/` |
+| `yosys-slang` | rtl-buddy/yosys-slang | branch `rtl-buddy-sv-elab` (`4055765`) | the `sv-elab` revision yosys v0.71 builds in (`2cfcfbe`) plus the fork's SVA support, which upstream still lacks: sequences (`##N`, `##[m:n]`, sequence `and`/`or`), `\|=>`, `disable iff` over the whole property, and `--ignore-unknown-modules` (rtl_buddy's synth parameter probe passes it). Loaded as a plugin, it overrides the built-in `sv-elab` (see rtl_buddy `docs/concepts/fpv.md`) |
 | `surfer` | rtl-buddy/surfer | branch `rtl-buddy` | WCP extensions (`set_scope`, `query_variable_values`, `time_unit`) required by `rb wave` / hub bridge; mainline lacks them (see rtl_buddy `docs/install.md`) |
-| `verilator` | rtl-buddy/verilator | branch `rtl-buddy` (v5.048 + patch) | v5.048 + backport of the V3TSP variable-ordering data-race fix (upstream PR #7752 / issues #7194, #5756): the global edge-id counter races under `--threads>1 -j>1` → `V3TSP.cpp: No unmarked edges found in tour`. No released verilator (≤ v5.048) has the fix; upstream `master`/5.049-devel removed V3TSP entirely. Re-point to a v5.049 tag once released |
-| `sby` | YosysHQ/sby | `v0.66` | official release |
+| `verilator` | rtl-buddy/verilator | branch `rtl-buddy-5.054` (`553d2587`: v5.054 + patch) | v5.054 plus one macOS patch: `verilated.mk` adds the Homebrew include/lib dirs for FST tracing's lz4 (Darwin only; without it every `--trace-fst` model compile fails with `lz4.h file not found`) |
+| `yices2` | SRI-CSL/yices2 | `yices-2.8.0` (`1fbee54`, 2026-11-04) | sby's default `smtbmc` solver. The `yices-2.7.0` tag (2025-07) and 2.6.x do not finish k-induction proofs that 2.8.0 closes in about 9 minutes. Check `yices-smt2 --version`'s `Revision:` line, not the version number. GMP linked statically |
+| `boolector` | Boolector/boolector | `3.2.4` (`393cdfba3`) | sby `smtbmc boolector`; Lingeling, CaDiCaL and btor2tools at the commits Boolector's `contrib/setup-*.sh` pin |
+| `sby` | YosysHQ/sby | `v0.66` | official release. Its venv also pins `z3-solver==5.1.0.0`, whose `z3` binary is `bin/z3` |
 | `verible` | chipsalliance/verible | `v0.0-4148-g1ea007ec` | upstream release pin (no fork). One version everywhere for `rb verible`/`rb hier`/xeno CST parsing, instead of a drifting brew install (macOS) + site module (Linux). macOS: bazel source build; Linux: the official linux-static release binary for the same tag (site machines have no bazel/root) |
 | `OpenROAD` | The-OpenROAD-Project/OpenROAD | `731f8ff5a4` (26Q2+911) | the bare `26Q2` tag crashes `rb power` static/dynamic on macOS; this is the validated commit |
 | `veridian` | vivekmalneedi/veridian | master | upstream has no release tags |
@@ -157,8 +167,9 @@ openXC7 binaries pick it up, exactly as for every other tool here.
 
 Non-submodule dirs created by the build (gitignored):
 
-- `tools/` — install prefix for verilator (`make install`), sby, and the
-  openXC7 nextpnr chipdb (`tools/share/nextpnr/chipdb/`).
+- `tools/` — install prefix for yosys, yices, boolector, verilator
+  (`make install`), sby, and the openXC7 nextpnr chipdb
+  (`tools/share/nextpnr/chipdb/`).
 - `sby-venv/` — python venv (click) backing the sby launcher.
 - `openxc7-venv/` — python venv (prjxray requirements) backing `fasm2frames`.
 
@@ -175,8 +186,8 @@ older rtl_buddy, point the project config (`plugin-path` /
 ## Not managed here
 
 - klayout — install the [app bundle](https://www.klayout.de/build.html).
-- iverilog, z3, yices, graphviz, gtkwave, lcov, marimo — homebrew
-  (covered by the brew line above).
+- iverilog, graphviz, gtkwave, lcov, marimo — homebrew
+  (covered by the brew line above). yices, boolector and z3 are pinned here.
 - rtl-buddy-view / rtl-buddy-cdc / rtl-buddy-axi-profiler / info-process —
   per-project python deps (`uv` / pip), not shared binaries.
 

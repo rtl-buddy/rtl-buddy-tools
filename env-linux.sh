@@ -3,8 +3,9 @@
 # May also be sourced through a symlink (e.g. a per-project project_setup.sh
 # that links here); readlink -f resolves to this repo regardless.
 #
-# Order matters: this repo's bin/ first (pinned yosys/verilator/surfer/sby),
-# then ~/.local/bin (z3, yices, iverilog, lcov, bison, OpenROAD deps from
+# Order matters: this repo's bin/ first (pinned yosys/verilator/surfer/sby/
+# yices/boolector — ahead of any older yices in ~/.local/bin), then
+# ~/.local/bin (iverilog, lcov, bison, OpenROAD deps from
 # install-prereqs-linux.sh), then ~/.cargo/bin (rust toolchain).
 _RB_TOOLS_SRC="$(readlink -f "${BASH_SOURCE[0]:-$0}")"
 _RB_TOOLS_ROOT="$(cd "$(dirname "$_RB_TOOLS_SRC")" && pwd)"

@@ -1,11 +1,12 @@
 # Consolidated builds of the EDA tools rtl_buddy depends on (macOS + Linux).
 # Each tool is a git submodule pinned at a validated ref, with three
 # documented fork pins (per rtl_buddy docs — see README.md):
-#   - yosys: rtl-buddy/yosys `rtl-buddy` branch (docs/concepts/synthesis.md) —
+#   - yosys: rtl-buddy/yosys `rtl-buddy-0.71` branch (docs/concepts/synthesis.md) —
 #     stock upstream rejects the unpacked structs / specific package imports
 #     that rtl_buddy designs use.
-#   - yosys-slang: rtl-buddy/yosys-slang `rtl-buddy` branch until
-#     povik/yosys-slang#317 merges (docs/concepts/fpv.md).
+#   - yosys-slang: rtl-buddy/yosys-slang `rtl-buddy-sv-elab` branch — the
+#     sv-elab revision Yosys 0.71 builds in, plus SVA sequences / `|=>` and
+#     --ignore-unknown-modules (docs/concepts/fpv.md).
 #   - surfer: rtl-buddy/surfer `rtl-buddy` branch — mainline lacks the WCP
 #     extensions (set_scope, query_variable_values, time_unit) that
 #     `rb wave` / the hub bridge rely on (docs/install.md, docs/concepts/wave.md).
@@ -42,44 +43,137 @@ SHELL := /bin/bash
 VMAKE ?= $(MAKE)
 endif
 
-.PHONY: all yosys yosys-slang verilator surfer veridian sby verible openroad \
+.PHONY: all yosys yosys-slang yices boolector verilator surfer veridian sby verible openroad \
         openxc7 openxc7-boost openxc7-nextpnr openxc7-prjxray openxc7-chipdb
 
-all: yosys yosys-slang verilator surfer veridian sby verible openroad
+all: yosys yosys-slang yices boolector verilator surfer veridian sby verible openroad
 
 # `openxc7` (the open FPGA toolchain — nextpnr-xilinx + prjxray + a
 # per-part nextpnr chipdb) is OPTIONAL and intentionally NOT part of `all`:
 # `make` / `make all` never build it. Build it on demand with `make
 # openxc7`. See the openXC7 section near the end of this file.
 
+# yosys >= 0.67 builds with CMake only. Installed into tools/ (bin/, share/yosys/)
+# so yosys-config reports real include/data dirs and yosys-smtbmc finds its
+# python3 modules. Yosys 0.71 also builds yosys-slang in (as `sv-elab`); the
+# rtl-buddy plugin below overrides it when loaded.
 ifeq ($(UNAME),Darwin)
+# yosys's CMake adds every Homebrew Cellar package to its search path itself
+# (cmake/UseHomebrew.cmake): bison, flex, readline, tcl-tk, libffi. It finds
+# readline, Tcl and libffi only through pkg-config (brew pkgconf) and builds
+# without them, silently, when pkg-config is missing. PKG_CONFIG_PATH pins Tcl
+# to tcl-tk@8: an unversioned brew tcl-tk (9.x) must not be picked up. The
+# last step fails the recipe if the installed yosys has no Tcl.
 yosys:
-	echo "CONFIG := clang" > yosys/Makefile.conf
-	PATH="$(BREW)/opt/bison/bin:$(BREW)/opt/flex/bin:$(BREW)/bin:$$PATH" \
-		$(MAKE) -C yosys -j$(JOBS)
+	PKG_CONFIG_PATH="$(BREW)/opt/tcl-tk@8/lib/pkgconfig" \
+	$(BREW)/bin/cmake -S yosys -B yosys/build -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools -DYOSYS_ENABLE_UNIT_TESTS=OFF
+	$(BREW)/bin/cmake --build yosys/build -j$(JOBS)
+	$(BREW)/bin/cmake --install yosys/build
+	printf 'puts "yosys tcl [info patchlevel]"\n' > yosys/build/tcl-check.tcl
+	tools/bin/yosys -q -c yosys/build/tcl-check.tcl
 else
-# yosys needs bison >= 3.6; Rocky 8 ships 3.0.4 — install-prereqs-linux.sh
-# puts 3.8.2 in ~/.local/bin.
+# bison >= 3.6, flex, readline and Tcl come from install-prereqs-linux.sh in
+# ~/.local (Rocky 8 ships bison 3.0.4 and no readline/Tcl headers).
+# PKG_CONFIG_LIBDIR: ~/.local/lib, then pkg-config's own system dirs (which
+# include the multiarch dir on Debian/Ubuntu), so a stray .pc elsewhere in
+# ~/.local/share/pkgconfig or on PKG_CONFIG_PATH cannot hijack zlib & co.
+SYS_PC := $(shell pkg-config --variable pc_path pkg-config 2>/dev/null)
 yosys:
-	echo "CONFIG := gcc" > yosys/Makefile.conf
-	PATH="$(HOME)/.local/bin:$$PATH" $(MAKE) -C yosys -j$(JOBS)
+	PATH="$(HOME)/.local/bin:$$PATH" \
+	PKG_CONFIG_LIBDIR="$(HOME)/.local/lib/pkgconfig:$(SYS_PC)" \
+		cmake -S yosys -B yosys/build -DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=$(ROOT)/tools -DYOSYS_ENABLE_UNIT_TESTS=OFF \
+		-DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=OFF \
+		-DCMAKE_INSTALL_RPATH="$(HOME)/.local/lib;$(HOME)/.local/lib64"
+	cmake --build yosys/build -j$(JOBS)
+	cmake --install yosys/build
 endif
 
-# Needs the shared yosys built first (yosys-config on PATH).
+# Needs yosys installed first: built against tools/bin/yosys-config. Rebuilt
+# from scratch every time — the plugin links against the yosys ABI. When this
+# run also builds yosys (`make all`, `make yosys yosys-slang`), yosys finishes
+# first, also under -j; `make yosys-slang` alone does not rebuild yosys.
+YOSYS_FIRST := $(if $(filter all yosys,$(or $(MAKECMDGOALS),all)),yosys)
+yosys-slang: $(YOSYS_FIRST)
 ifeq ($(UNAME),Darwin)
 yosys-slang:
-	PATH="$(ROOT)/yosys:$(BREW)/bin:$$PATH" $(MAKE) -C yosys-slang -j$(JOBS)
+	rm -rf yosys-slang/build
+	$(BREW)/bin/cmake -S yosys-slang -B yosys-slang/build -DCMAKE_BUILD_TYPE=Release \
+		-DYOSYS_CONFIG=$(ROOT)/tools/bin/yosys-config
+	$(BREW)/bin/cmake --build yosys-slang/build -j$(JOBS)
 else
-# ~/.local/bin first: provides the `gmake` 4.4.x alias so the cmake-driven
-# sub-build inherits the fifo jobserver (system gmake 4.2.1 chokes on it).
-# CMAKE_CXX_FLAGS: in-tree yosys-config emits its baked-in PREFIX include
-# dir (/usr/local/share/yosys/include) which needs root to exist; point the
-# compiler at the in-tree yosys headers instead.
 yosys-slang:
-	PATH="$(ROOT)/yosys:$(HOME)/.local/bin:$$PATH" \
-		$(MAKE) -C yosys-slang -j$(JOBS) \
-		CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-I$(ROOT)/yosys"
+	rm -rf yosys-slang/build
+	cmake -S yosys-slang -B yosys-slang/build -DCMAKE_BUILD_TYPE=Release \
+		-DYOSYS_CONFIG=$(ROOT)/tools/bin/yosys-config
+	cmake --build yosys-slang/build -j$(JOBS)
 endif
+
+# Yices 2 (sby `smtbmc yices`, the default solver): the yices-2.8.0 release.
+# Pick the solver revision by measurement: the yices-2.7.0 tag (2025-07) and
+# 2.6.x fail to close k-induction proofs that 2.8.0 closes in minutes. GMP is linked statically
+# (--with-static-gmp) so the binaries carry no libgmp dependency; Linux builds
+# a fat (runtime CPU dispatch) GMP here, since distro hosts often lack gmp.h.
+# Check a build with `yices-smt2 --version`: the Revision line, not the number.
+GMP_VER := 6.3.0
+GMP_SHA := a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
+ifeq ($(UNAME),Darwin)
+# configure also runs a plain AC_CHECK_LIB(gmp) and the regular `install`
+# links -lgmp, so LDFLAGS points at a dir holding only brew's libgmp.a: with
+# brew's lib dir instead, the binaries would link libgmp.dylib.
+yices:
+	mkdir -p yices2/deps/lib && ln -sf $(BREW)/opt/gmp/lib/libgmp.a yices2/deps/lib/libgmp.a
+	cd yices2 && PATH="$(BREW)/bin:$$PATH" autoconf && PATH="$(BREW)/bin:$$PATH" ./configure \
+		--prefix=$(ROOT)/tools \
+		--with-static-gmp=$(BREW)/opt/gmp/lib/libgmp.a \
+		--with-static-gmp-include-dir=$(BREW)/opt/gmp/include \
+		CPPFLAGS=-I$(BREW)/opt/gmp/include LDFLAGS=-L$(ROOT)/yices2/deps/lib
+	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C yices2 -j$(JOBS)
+	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C yices2 install
+else
+yices:
+	test -f yices2/deps/lib/libgmp.a || ( mkdir -p yices2/deps/src && cd yices2/deps/src \
+		&& curl -fsSLO https://ftp.gnu.org/gnu/gmp/gmp-$(GMP_VER).tar.xz \
+		&& echo "$(GMP_SHA)  gmp-$(GMP_VER).tar.xz" | sha256sum -c --quiet - \
+		&& tar xf gmp-$(GMP_VER).tar.xz && cd gmp-$(GMP_VER) \
+		&& ./configure -q --prefix=$(ROOT)/yices2/deps --enable-fat --disable-shared --with-pic \
+		&& $(MAKE) -j$(JOBS) && $(MAKE) install )
+	cd yices2 && PATH="$(HOME)/.local/bin:$$PATH" autoconf && PATH="$(HOME)/.local/bin:$$PATH" ./configure \
+		--prefix=$(ROOT)/tools \
+		--with-static-gmp=$(ROOT)/yices2/deps/lib/libgmp.a \
+		--with-static-gmp-include-dir=$(ROOT)/yices2/deps/include \
+		CPPFLAGS=-I$(ROOT)/yices2/deps/include LDFLAGS=-L$(ROOT)/yices2/deps/lib
+	PATH="$(HOME)/.local/bin:$$PATH" $(MAKE) -C yices2 -j$(JOBS)
+	$(MAKE) -C yices2 install
+endif
+	tools/bin/yices-smt2 --version
+
+# Boolector 3.2.4 (sby `smtbmc boolector`; some cover/BMC tasks are much faster
+# on it than on yices). Lingeling, CaDiCaL and btor2tools are fetched by
+# Boolector's own contrib scripts at the commits it pins. CMake 4 refuses
+# their old cmake_minimum_required without CMAKE_POLICY_VERSION_MINIMUM.
+# Linux: --shared, because the default links the binaries -static and glibc
+# hosts rarely have libc.a; the binary finds libboolector.so by RUNPATH.
+# macOS never links -static, so the default static library is used.
+BTOR_ENV := NPROC=$(JOBS) CMAKE_POLICY_VERSION_MINIMUM=3.5
+ifeq ($(UNAME),Darwin)
+boolector:
+	cd boolector && rm -rf deps build && PATH="$(BREW)/bin:$$PATH" $(BTOR_ENV) sh -c '\
+		./contrib/setup-lingeling.sh && ./contrib/setup-cadical.sh && ./contrib/setup-btor2tools.sh \
+		&& ./configure.sh --prefix $(ROOT)/tools'
+	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C boolector/build -j$(JOBS) install
+else
+# The contrib scripts take their -j from `nproc` (setup-utils.sh overwrites
+# NPROC), so a bash function stands in for it to keep them to JOBS.
+boolector:
+	cd boolector && rm -rf deps build && $(BTOR_ENV) bash -c '\
+		nproc() { echo $(JOBS); }; export -f nproc; \
+		./contrib/setup-lingeling.sh && ./contrib/setup-cadical.sh && ./contrib/setup-btor2tools.sh \
+		&& CMAKE_OPTS="-DCMAKE_INSTALL_RPATH=\$$ORIGIN/../lib64;\$$ORIGIN/../lib" ./configure.sh --shared --prefix $(ROOT)/tools'
+	$(MAKE) -C boolector/build -j$(JOBS) install
+endif
+	tools/bin/boolector --version
 
 # env -u VERILATOR_ROOT: site environments (module load verilator) export a
 # foreign VERILATOR_ROOT which configure would otherwise embed as DEFENV.
@@ -106,10 +200,14 @@ veridian:
 # resulting sby binary resolves libpython on its own — no python-module
 # LD_LIBRARY_PATH entry in site-env.sh needed. Override e.g. SBY_PYTHON=3.12.
 # (Requires uv on PATH at build time — already a runtime prerequisite of rb.)
+#
+# z3 comes from the same venv (the z3-solver wheel ships the `z3` binary;
+# bin/z3 links to it), so macOS and Linux run one pinned z3 instead of brew's
+# or a distro's.
 SBY_PYTHON ?= 3.11
 sby:
 	test -d sby-venv || uv venv --python $(SBY_PYTHON) --seed sby-venv
-	./sby-venv/bin/pip install --quiet click
+	./sby-venv/bin/pip install --quiet click==8.5.0 z3-solver==5.1.0.0
 	$(MAKE) -C sby install PREFIX=$(ROOT)/tools \
 		YOSYS_RELEASE_VERSION="SBY $$(git -C sby describe --tags)"
 ifeq ($(UNAME),Darwin)
