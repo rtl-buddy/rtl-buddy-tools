@@ -110,9 +110,9 @@ yosys-slang:
 	cmake --build yosys-slang/build -j$(JOBS)
 endif
 
-# Yices 2 (sby `smtbmc yices`, the default solver): a yices2 master commit,
-# not a release tag — the yices-2.7.0 tag (2025-07) and 2.6.x fail to close
-# k-induction proofs this commit closes in minutes. GMP is linked statically
+# Yices 2 (sby `smtbmc yices`, the default solver): the yices-2.8.0 release.
+# Pick the solver revision by measurement: the yices-2.7.0 tag (2025-07) and
+# 2.6.x fail to close k-induction proofs that 2.8.0 closes in minutes. GMP is linked statically
 # (--with-static-gmp) so the binaries carry no libgmp dependency; Linux builds
 # a fat (runtime CPU dispatch) GMP here, since distro hosts often lack gmp.h.
 # Check a build with `yices-smt2 --version`: the Revision line, not the number.

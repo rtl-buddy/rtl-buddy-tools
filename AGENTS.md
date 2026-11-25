@@ -119,10 +119,13 @@ commit, generalize, or delete them.
 10. **Commit style:** a pin bump is one commit containing the submodule pointer,
    any Makefile/README/AGENTS.md updates it forces, and a body that names the
    validation performed. Never commit `tools/`, `sby-venv/`, or build outputs.
-11. **yices is pinned to a commit, not a release.** Solver revisions change
-    which k-induction proofs close at all, and builds of different commits
-    report the same version number. Compare `yices-smt2 --version`'s
-    `Revision:` line when checking an install.
+11. **yices is pinned to a release (`yices-2.8.0`), chosen by measurement.**
+    Solver revisions change which k-induction proofs close at all: the
+    `yices-2.7.0` tag and 2.6.x do not close proofs that 2.8.0 closes in
+    minutes. Before moving the pin, time a known slow k-induction proof on the
+    old and new revision, side by side. Builds of different commits can report
+    the same version number, so compare `yices-smt2 --version`'s `Revision:`
+    line when checking an install.
 
 ## Validation procedure (run before committing any pin change)
 
