@@ -112,11 +112,16 @@ endif
 GMP_VER := 6.3.0
 GMP_SHA := a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
 ifeq ($(UNAME),Darwin)
+# configure also runs a plain AC_CHECK_LIB(gmp) and the regular `install`
+# links -lgmp, so LDFLAGS points at a dir holding only brew's libgmp.a: with
+# brew's lib dir instead, the binaries would link libgmp.dylib.
 yices:
+	mkdir -p yices2/deps/lib && ln -sf $(BREW)/opt/gmp/lib/libgmp.a yices2/deps/lib/libgmp.a
 	cd yices2 && PATH="$(BREW)/bin:$$PATH" autoconf && PATH="$(BREW)/bin:$$PATH" ./configure \
 		--prefix=$(ROOT)/tools \
 		--with-static-gmp=$(BREW)/opt/gmp/lib/libgmp.a \
-		--with-static-gmp-include-dir=$(BREW)/opt/gmp/include
+		--with-static-gmp-include-dir=$(BREW)/opt/gmp/include \
+		CPPFLAGS=-I$(BREW)/opt/gmp/include LDFLAGS=-L$(ROOT)/yices2/deps/lib
 	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C yices2 -j$(JOBS)
 	PATH="$(BREW)/bin:$$PATH" $(MAKE) -C yices2 install
 else
