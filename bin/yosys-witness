@@ -1,1 +1,9 @@
-../tools/bin/yosys-witness
+#!/bin/sh
+# yosys-witness imports python's click module, which a system python3 may
+# lack; sby then reports every abc proof as ERROR. Run it on sby's venv
+# python (`make sby` installs click there), as bin/sby does. With no venv
+# yet, fall back to python3 on PATH.
+root="$(dirname "$(realpath "$0")")/.."
+py="$root/sby-venv/bin/python3"
+[ -x "$py" ] || py=python3
+exec "$py" "$root/tools/bin/yosys-witness" "$@"

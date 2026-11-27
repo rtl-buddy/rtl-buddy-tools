@@ -32,7 +32,7 @@ bin/                      # committed relative symlinks to every built binary
                           #   + OPTIONAL openXC7: nextpnr-xilinx, prjxray, prjxray-db
 tools/                    # gitignored install prefix (verilator, sby, verible, openXC7 chipdb)
                           #   + tools/src: cached verible linux-static release tarball
-sby-venv/                 # gitignored python venv for the sby launcher
+sby-venv/                 # gitignored python venv for the sby and yosys-witness launchers
 openxc7-venv/             # gitignored python venv (prjxray reqs) for fasm2frames
 install-prereqs-linux.sh  # Linux: user-space deps brew provides on macOS (-> ~/.local)
 env-macos.zsh             # macOS: PATH setup + VERILATOR_ROOT unset + RTL_BUDDY_SLANG_PLUGIN export
@@ -78,6 +78,14 @@ commit, generalize, or delete them.
    is an exec wrapper, not a symlink) and the Makefile passes
    `YOSYS_RELEASE_VERSION` explicitly because `git describe` inside sby's own
    Makefile resolves empty under an absorbed submodule gitdir.
+   bin/yosys-witness is an exec wrapper too: it runs the yosys-installed
+   script on `sby-venv`'s python, because the script needs click and the
+   installed shebang is `/usr/bin/env python3`. sby calls it to convert an
+   `abc`/aiger counterexample, so without click a failing proof reports
+   ERROR ("Could not determine aigsmt status") instead of FAIL with a
+   trace; passing proofs never call it. Don't turn it back into a
+   symlink, and don't put `sby-venv/bin` on PATH (its python3 would shadow
+   the user's).
 7. **verible is an upstream release pin, consumed two ways.** The submodule
    points at a chipsalliance/verible RELEASE tag and both OS recipes derive
    the version from that one pin (`git describe`): macOS builds from source
