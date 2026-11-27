@@ -80,8 +80,10 @@ commit, generalize, or delete them.
    Makefile resolves empty under an absorbed submodule gitdir.
    bin/yosys-witness is an exec wrapper too: it runs the yosys-installed
    script on `sby-venv`'s python, because the script needs click and the
-   installed shebang is `/usr/bin/env python3`. Without click every sby
-   `abc` engine reports ERROR, not PASS/FAIL. Don't turn it back into a
+   installed shebang is `/usr/bin/env python3`. sby calls it to convert an
+   `abc`/aiger counterexample, so without click a failing proof reports
+   ERROR ("Could not determine aigsmt status") instead of FAIL with a
+   trace; passing proofs never call it. Don't turn it back into a
    symlink, and don't put `sby-venv/bin` on PATH (its python3 would shadow
    the user's).
 7. **verible is an upstream release pin, consumed two ways.** The submodule
