@@ -170,7 +170,7 @@ Non-submodule dirs created by the build (gitignored):
 - `tools/` — install prefix for yosys, yices, boolector, verilator
   (`make install`), sby, and the openXC7 nextpnr chipdb
   (`tools/share/nextpnr/chipdb/`).
-- `sby-venv/` — python venv (click) backing the sby launcher.
+- `sby-venv/` — python venv (click) backing the sby and yosys-witness launchers.
 - `openxc7-venv/` — python venv (prjxray requirements) backing `fasm2frames`.
 
 The yosys-slang plugin is not a `bin/` tool. The env scripts export
